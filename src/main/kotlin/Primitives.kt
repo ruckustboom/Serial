@@ -43,7 +43,7 @@ public fun InputStream.readUInt(): UInt = readInt().toUInt()
 public fun OutputStream.writeUInt(value: UInt): Unit = writeInt(value.toInt())
 
 public fun InputStream.readLong(): Long = (readInt().toLong() shl 32) or (readInt().toLong() and 0xFF_FF_FF_FF)
-public fun OutputStream.writeLong(value: Long): Unit {
+public fun OutputStream.writeLong(value: Long) {
     writeInt(value.ushr(32).toInt())
     write((value and 0xFF_FF_FF_FF).toInt())
 }
