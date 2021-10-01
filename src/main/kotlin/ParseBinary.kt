@@ -3,8 +3,6 @@ package serial
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
-internal const val DEFAULT_BYTES_COUNT = 8
-
 public interface BinaryParseState {
     public val offset: Int
     public val byte: Byte
@@ -27,21 +25,21 @@ public class BinaryParseException(
 
 public fun InputStream.initParse(): BinaryParseState = BinaryParseStateImpl(this).apply { next() }
 
-/**
- * This method does **NOT** close the input stream or check for input
- * exhaustion. It is up to the user to handle that.
- */
-public inline fun <T> InputStream.parse(parse: BinaryParseState.() -> T): T = initParse().parse()
+public inline fun <T> InputStream.parse(
+    consumeAll: Boolean = true,
+    closeWhenDone: Boolean = true,
+    parse: BinaryParseState.() -> T
+): T = with(initParse()) {
+    val result = parse()
+    if (closeWhenDone) close()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $byte")
+    result
+}
 
 public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
     parse: BinaryParseState.() -> T,
-): T = ByteArrayInputStream(this).use {
-    val state = it.initParse()
-    val value = state.parse()
-    if (consumeAll && state.offset < size) state.crash("Unexpected: ${state.byte} (${state.offset} vs $size)")
-    value
-}
+): T = ByteArrayInputStream(this).use { it.parse(consumeAll, true, parse) }
 
 public fun BinaryParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw BinaryParseException(offset, byte, message, cause)
@@ -94,7 +92,6 @@ private class BinaryParseStateImpl(private val stream: InputStream) : BinaryPars
         offset++
         if (next >= 0) {
             byte = next.toByte()
-            isEndOfInput = false
         } else {
             byte = 0
             isEndOfInput = true
@@ -103,7 +100,7 @@ private class BinaryParseStateImpl(private val stream: InputStream) : BinaryPars
 
     // Capture
 
-    private val capture = Bytes()
+    private val capture = ByteArrayBuilder()
     private var isCapturing = false
 
     override fun startCapture() {
@@ -124,30 +121,18 @@ private class BinaryParseStateImpl(private val stream: InputStream) : BinaryPars
     }
 }
 
-private class Bytes {
+private const val DEFAULT_BYTES_COUNT = 8
+
+private class ByteArrayBuilder {
     private var array = ByteArray(DEFAULT_BYTES_COUNT)
     var count: Int = 0
         private set
 
     fun append(byte: Byte) {
-        ensure(count + 1)
-        array[count++] = byte
-    }
-
-    fun append(bytes: ByteArray) {
-        ensure(count + bytes.size)
-        bytes.copyInto(array, count)
-        count += bytes.size
-    }
-
-    private fun ensure(size: Int) {
-        if (array.size < size) {
-            var actual = array.size
-            while (actual < size) actual *= 2
-            val new = ByteArray(actual)
-            array.copyInto(new)
-            array = new
+        if (array.size < count + 1) {
+            array = array.copyOf(array.size * 2)
         }
+        array[count++] = byte
     }
 
     fun toArray(): ByteArray = array.copyOf(count)

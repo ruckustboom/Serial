@@ -29,21 +29,21 @@ public class TextParseException(
 
 public fun Reader.initParse(): TextParseState = TextParseStateImpl(this).apply { next() }
 
-/**
- * This method does **NOT** close the reader or check for input exhaustion. It
- * is up to the user to handle that.
- */
-public inline fun <T> Reader.parse(parse: TextParseState.() -> T): T = initParse().parse()
+public inline fun <T> Reader.parse(
+    consumeAll: Boolean = true,
+    closeWhenDone: Boolean = true,
+    parse: TextParseState.() -> T,
+): T = with(initParse()) {
+    val result = parse()
+    if (closeWhenDone) close()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $char")
+    result
+}
 
 public inline fun <T> String.parse(
     consumeAll: Boolean = true,
     parse: TextParseState.() -> T,
-): T = StringReader(this).use {
-    val state = it.initParse()
-    val value = state.parse()
-    if (consumeAll && state.offset < length) state.crash("Unexpected: ${state.char} (${state.offset} vs $length)")
-    value
-}
+): T = StringReader(this).use { it.parse(consumeAll, true, parse) }
 
 public fun TextParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw TextParseException(offset, line, offset - lineStart + 1, char, message, cause)
@@ -110,7 +110,6 @@ private class TextParseStateImpl(private val stream: Reader) : TextParseState {
         offset++
         if (next >= 0) {
             char = next.toChar()
-            isEndOfInput = false
         } else {
             char = '\u0000'
             isEndOfInput = true
