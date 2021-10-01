@@ -1,5 +1,7 @@
 package serial
 
+import java.util.stream.Stream
+
 public interface ParseState<T> {
     public val offset: Int
     public val value: T
@@ -20,23 +22,26 @@ public class ParseException(
 
 // Some common helpers
 
-public fun <T> Iterable<T>.initParse(): ParseState<T> = ParseStateImpl(iterator()).apply { next() }
+public fun <T> Iterator<T>.initParse(): ParseState<T> = ParseStateImpl(iterator()).apply { next() }
 
-/**
- * This method does **NOT** close the reader or check for input exhaustion. It
- * is up to the user to handle that.
- */
-public inline fun <T, R> Iterable<T>.parse(parse: ParseState<T>.() -> R): R = initParse().parse()
-
-public inline fun <T, R> Collection<T>.parse(
+public inline fun <T, R> Iterator<T>.parse(
     consumeAll: Boolean = true,
     parse: ParseState<T>.() -> R,
-): R {
-    val state = initParse()
-    val value = state.parse()
-    if (consumeAll && state.offset < size) state.crash("Unexpected: ${state.value} (${state.offset} vs $size)")
-    return value
+): R = with(initParse()) {
+    val result = parse()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $value")
+    result
 }
+
+public inline fun <T, R> Iterable<T>.parse(
+    consumeAll: Boolean = true,
+    parse: ParseState<T>.() -> R,
+): R = iterator().parse(consumeAll, parse)
+
+public inline fun <T, R> Stream<T>.parse(
+    consumeAll: Boolean = true,
+    parse: ParseState<T>.() -> R,
+): R = iterator().parse(consumeAll, parse)
 
 public fun <T> ParseState<T>.crash(message: String, cause: Throwable? = null): Nothing =
     throw ParseException(offset, value, message, cause)
