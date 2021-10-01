@@ -110,7 +110,6 @@ private class TextParseStateImpl(private val stream: Reader) : TextParseState {
         offset++
         if (next >= 0) {
             char = next.toChar()
-            isEndOfInput = false
         } else {
             char = '\u0000'
             isEndOfInput = true

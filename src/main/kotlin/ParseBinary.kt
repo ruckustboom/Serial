@@ -94,7 +94,6 @@ private class BinaryParseStateImpl(private val stream: InputStream) : BinaryPars
         offset++
         if (next >= 0) {
             byte = next.toByte()
-            isEndOfInput = false
         } else {
             byte = 0
             isEndOfInput = true
