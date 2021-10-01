@@ -139,7 +139,6 @@ private class ByteArrayBuilder {
 
     fun truncate(): ByteArray {
         val result = toArray()
-        array = ByteArray(DEFAULT_BYTES_COUNT)
         count = 0
         return result
     }
