@@ -1,5 +1,7 @@
 package serial
 
+import java.io.Reader
+import java.io.StringReader
 import java.util.stream.Stream
 
 public interface ParseState<T> {
@@ -43,6 +45,22 @@ public inline fun <T, R> Stream<T>.parse(
     parse: ParseState<T>.() -> R,
 ): R = iterator().parse(consumeAll, parse)
 
+public inline fun <T, R> Iterator<T>.parseMultiple(
+    parse: ParseState<T>.() -> R,
+): List<R> = with(initParse()) {
+    val results = mutableListOf<R>()
+    while (!isEndOfInput) results += parse()
+    results
+}
+
+public inline fun <T, R> Iterable<T>.parseMultiple(
+    parse: ParseState<T>.() -> R,
+): List<R> = iterator().parseMultiple(parse)
+
+public inline fun <T, R> Stream<T>.parseMultiple(
+    parse: ParseState<T>.() -> R,
+): List<R> = iterator().parseMultiple(parse)
+
 public fun <T> ParseState<T>.crash(message: String, cause: Throwable? = null): Nothing =
     throw ParseException(offset, value, message, cause)
 
@@ -83,12 +101,10 @@ public fun <T> ParseState<T>.readLiteral(literal: List<T>): Unit =
 
 private class ParseStateImpl<T>(private val stream: Iterator<T>) : ParseState<T> {
     override var offset = -1
-    private var actual: T? = null
     override var isEndOfInput = false
 
     @Suppress("UNCHECKED_CAST")
-    override val value: T
-        get() = if (isEndOfInput) error("EOI") else actual as T
+    override var value: T = null as T
 
     // Read
 
@@ -97,9 +113,10 @@ private class ParseStateImpl<T>(private val stream: Iterator<T>) : ParseState<T>
         if (isCapturing) addToCapture(value)
         offset++
         if (stream.hasNext()) {
-            actual = stream.next()
+            value = stream.next()
         } else {
-            actual = null
+            @Suppress("UNCHECKED_CAST")
+            value = null as T
             isEndOfInput = true
         }
     }

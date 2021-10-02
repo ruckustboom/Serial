@@ -2,6 +2,8 @@ package serial
 
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.io.Reader
+import java.io.StringReader
 
 public interface BinaryParseState {
     public val offset: Int
@@ -40,6 +42,20 @@ public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
     parse: BinaryParseState.() -> T,
 ): T = ByteArrayInputStream(this).use { it.parse(consumeAll, true, parse) }
+
+public inline fun <T> InputStream.parseMultiple(
+    closeWhenDone: Boolean = true,
+    parse: BinaryParseState.() -> T,
+): List<T> = with(initParse()) {
+    val results = mutableListOf<T>()
+    while (!isEndOfInput) results += parse()
+    if (closeWhenDone) close()
+    results
+}
+
+public inline fun <T> ByteArray.parseMultiple(
+    parse: BinaryParseState.() -> T,
+): List<T> = ByteArrayInputStream(this).use { it.parseMultiple(true, parse) }
 
 public fun BinaryParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw BinaryParseException(offset, byte, message, cause)

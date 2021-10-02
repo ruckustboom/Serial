@@ -45,6 +45,20 @@ public inline fun <T> String.parse(
     parse: TextParseState.() -> T,
 ): T = StringReader(this).use { it.parse(consumeAll, true, parse) }
 
+public inline fun <T> Reader.parseMultiple(
+    closeWhenDone: Boolean = true,
+    parse: TextParseState.() -> T,
+): List<T> = with(initParse()) {
+    val results = mutableListOf<T>()
+    while (!isEndOfInput) results += parse()
+    if (closeWhenDone) close()
+    results
+}
+
+public inline fun <T> String.parseMultiple(
+    parse: TextParseState.() -> T,
+): List<T> = StringReader(this).use { it.parseMultiple(true, parse) }
+
 public fun TextParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw TextParseException(offset, line, offset - lineStart + 1, char, message, cause)
 
