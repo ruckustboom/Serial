@@ -7,7 +7,7 @@ public interface TextParseState {
     public val offset: Int
     public val line: Int
     public val lineStart: Int
-    public val char: Char
+    public val current: Char
     public val isEndOfInput: Boolean
     public fun next()
     public fun startCapture()
@@ -36,7 +36,7 @@ public inline fun <T> Reader.parse(
 ): T = with(initParse()) {
     val result = parse()
     if (closeWhenDone) close()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $char")
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     result
 }
 
@@ -60,21 +60,21 @@ public inline fun <T> String.parseMultiple(
 ): List<T> = StringReader(this).use { it.parseMultiple(true, parse) }
 
 public fun TextParseState.crash(message: String, cause: Throwable? = null): Nothing =
-    throw TextParseException(offset, line, offset - lineStart + 1, char, message, cause)
+    throw TextParseException(offset, line, offset - lineStart + 1, current, message, cause)
 
 public inline fun TextParseState.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
 public inline fun TextParseState.readIf(predicate: (Char) -> Boolean): Boolean =
-    if (!isEndOfInput && predicate(char)) {
+    if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
 public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
     var count = 0
-    while (!isEndOfInput && predicate(char)) {
+    while (!isEndOfInput && predicate(current)) {
         next()
         count++
     }
@@ -107,25 +107,25 @@ private class TextParseStateImpl(private val stream: Reader) : TextParseState {
     override var offset = -1
     override var line = 1
     override var lineStart = 0
-    override var char = '\u0000'
+    override var current = '\u0000'
     override var isEndOfInput = false
 
     // Read
 
     override fun next() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(char)
+        if (isCapturing) addToCapture(current)
         // Check for newline
-        if (char == '\n') {
+        if (current == '\n') {
             line++
             lineStart = offset
         }
         val next = stream.read()
         offset++
         if (next >= 0) {
-            char = next.toChar()
+            current = next.toChar()
         } else {
-            char = '\u0000'
+            current = '\u0000'
             isEndOfInput = true
         }
     }

@@ -2,12 +2,10 @@ package serial
 
 import java.io.ByteArrayInputStream
 import java.io.InputStream
-import java.io.Reader
-import java.io.StringReader
 
 public interface BinaryParseState {
     public val offset: Int
-    public val byte: Byte
+    public val current: Byte
     public val isEndOfInput: Boolean
     public fun next()
     public fun startCapture()
@@ -34,7 +32,7 @@ public inline fun <T> InputStream.parse(
 ): T = with(initParse()) {
     val result = parse()
     if (closeWhenDone) close()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $byte")
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     result
 }
 
@@ -58,21 +56,21 @@ public inline fun <T> ByteArray.parseMultiple(
 ): List<T> = ByteArrayInputStream(this).use { it.parseMultiple(true, parse) }
 
 public fun BinaryParseState.crash(message: String, cause: Throwable? = null): Nothing =
-    throw BinaryParseException(offset, byte, message, cause)
+    throw BinaryParseException(offset, current, message, cause)
 
 public inline fun BinaryParseState.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
 public inline fun BinaryParseState.readIf(predicate: (Byte) -> Boolean): Boolean =
-    if (!isEndOfInput && predicate(byte)) {
+    if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
 public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int {
     var count = 0
-    while (!isEndOfInput && predicate(byte)) {
+    while (!isEndOfInput && predicate(current)) {
         next()
         count++
     }
@@ -96,20 +94,20 @@ public fun BinaryParseState.readLiteral(bytes: ByteArray): Unit = bytes.forEach(
 
 private class BinaryParseStateImpl(private val stream: InputStream) : BinaryParseState {
     override var offset = -1
-    override var byte: Byte = 0
+    override var current: Byte = 0
     override var isEndOfInput = false
 
     // Read
 
     override fun next() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(byte)
+        if (isCapturing) addToCapture(current)
         val next = stream.read()
         offset++
         if (next >= 0) {
-            byte = next.toByte()
+            current = next.toByte()
         } else {
-            byte = 0
+            current = 0
             isEndOfInput = true
         }
     }

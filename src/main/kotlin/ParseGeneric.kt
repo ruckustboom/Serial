@@ -1,12 +1,10 @@
 package serial
 
-import java.io.Reader
-import java.io.StringReader
 import java.util.stream.Stream
 
 public interface ParseState<T> {
     public val offset: Int
-    public val value: T
+    public val current: T
     public val isEndOfInput: Boolean
     public fun next()
     public fun startCapture()
@@ -31,7 +29,7 @@ public inline fun <T, R> Iterator<T>.parse(
     parse: ParseState<T>.() -> R,
 ): R = with(initParse()) {
     val result = parse()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $value")
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     result
 }
 
@@ -62,21 +60,21 @@ public inline fun <T, R> Stream<T>.parseMultiple(
 ): List<R> = iterator().parseMultiple(parse)
 
 public fun <T> ParseState<T>.crash(message: String, cause: Throwable? = null): Nothing =
-    throw ParseException(offset, value, message, cause)
+    throw ParseException(offset, current, message, cause)
 
 public inline fun <T> ParseState<T>.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
 public inline fun <T> ParseState<T>.readIf(predicate: (T) -> Boolean): Boolean =
-    if (!isEndOfInput && predicate(value)) {
+    if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
 public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
     var count = 0
-    while (!isEndOfInput && predicate(value)) {
+    while (!isEndOfInput && predicate(current)) {
         next()
         count++
     }
@@ -104,19 +102,19 @@ private class ParseStateImpl<T>(private val stream: Iterator<T>) : ParseState<T>
     override var isEndOfInput = false
 
     @Suppress("UNCHECKED_CAST")
-    override var value: T = null as T
+    override var current: T = null as T
 
     // Read
 
     override fun next() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(value)
+        if (isCapturing) addToCapture(current)
         offset++
         if (stream.hasNext()) {
-            value = stream.next()
+            current = stream.next()
         } else {
             @Suppress("UNCHECKED_CAST")
-            value = null as T
+            current = null as T
             isEndOfInput = true
         }
     }

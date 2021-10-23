@@ -69,3 +69,19 @@ public fun OutputStream.writeString(value: String) {
     writeInt(bytes.size)
     write(bytes)
 }
+
+public inline fun <reified T : Enum<T>> InputStream.readEnum(): T = enumValues<T>()[readInt()]
+public fun <T : Enum<T>> OutputStream.writeEnum(value: T): Unit = writeInt(value.ordinal)
+
+public inline fun <reified T : Enum<T>> InputStream.readEnumSmall(): T {
+    val variants = enumValues<T>()
+    require(variants.size <= UByte.MAX_VALUE.toInt())
+    return variants[readUByte().toInt()]
+}
+
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumSmall(value: T) {
+    require(value.ordinal < UByte.MAX_VALUE.toInt())
+    val variants = enumValues<T>()
+    require(variants.size <= UByte.MAX_VALUE.toInt())
+    writeUByte(value.ordinal.toUByte())
+}
