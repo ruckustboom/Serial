@@ -99,8 +99,6 @@ public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = fal
     for (char in literal) readRequiredChar(char, ignoreCase)
 }
 
-public fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
-
 // Implementation
 
 private class TextParseStateImpl(private val stream: Reader) : TextParseState {
