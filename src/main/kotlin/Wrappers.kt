@@ -46,15 +46,26 @@ public inline fun <T> OutputStream.writeValues(list: Collection<T>, writeValue: 
 }
 
 public inline fun <K, V> InputStream.readMap(
+    readEntry: InputStream.() -> Pair<K, V>,
+    action: (entry: Pair<K, V>) -> Unit,
+): Unit = repeatRead { action(readEntry()) }
+
+public inline fun <K, V> InputStream.readMap(
+    readEntry: InputStream.() -> Pair<K, V>,
+    into: MutableMap<K, V> = mutableMapOf(),
+): Map<K, V> {
+    readMap(readEntry) { (key, value) -> into[key] = value }
+    return into
+}
+
+public inline fun <K, V> InputStream.readMap(
     readKey: InputStream.() -> K,
     readValue: InputStream.(K) -> V,
     action: (key: K, value: V) -> Unit,
-) {
-    repeatRead {
-        val key = readKey()
-        val value = readValue(key)
-        action(key, value)
-    }
+): Unit = repeatRead {
+    val key = readKey()
+    val value = readValue(key)
+    action(key, value)
 }
 
 public inline fun <K, V> InputStream.readMap(
@@ -78,11 +89,9 @@ public inline fun <K, V> OutputStream.writeMap(
     map: Map<K, V>,
     writeKey: OutputStream.(key: K) -> Unit,
     writeValue: OutputStream.(value: V) -> Unit,
-) {
-    writeMap(map) { key, value ->
-        writeKey(key)
-        writeValue(value)
-    }
+): Unit = writeMap(map) { key, value ->
+    writeKey(key)
+    writeValue(value)
 }
 
 // Testing
