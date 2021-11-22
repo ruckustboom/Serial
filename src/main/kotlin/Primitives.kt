@@ -70,18 +70,35 @@ public fun OutputStream.writeString(value: String) {
     write(bytes)
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnum(): T = enumValues<T>()[readInt()]
-public fun <T : Enum<T>> OutputStream.writeEnum(value: T): Unit = writeInt(value.ordinal)
-
-public inline fun <reified T : Enum<T>> InputStream.readEnumSmall(): T {
+public inline fun <reified T : Enum<T>> InputStream.readEnum(): T {
     val variants = enumValues<T>()
-    require(variants.size <= UByte.MAX_VALUE.toInt())
-    return variants[readUByte().toInt()]
+    return variants[when {
+        variants.size <= UByte.MAX_VALUE.toInt() -> readUByte().toInt()
+        variants.size <= UShort.MAX_VALUE.toInt() -> readUShort().toInt()
+        else -> readInt()
+    }]
 }
 
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumSmall(value: T) {
-    require(value.ordinal < UByte.MAX_VALUE.toInt())
+public inline fun <reified T : Enum<T>> OutputStream.writeEnum(value: T) {
     val variants = enumValues<T>()
-    require(variants.size <= UByte.MAX_VALUE.toInt())
+    when {
+        variants.size <= UByte.MAX_VALUE.toInt() -> writeUByte(value.ordinal.toUByte())
+        variants.size <= UShort.MAX_VALUE.toInt() -> writeUShort(value.ordinal.toUShort())
+        else -> writeInt(value.ordinal)
+    }
+}
+
+public inline fun <reified T : Enum<T>> InputStream.readEnumByte(): T = enumValues<T>()[readUByte().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumByte(value: T) {
+    require(value.ordinal < UByte.MAX_VALUE.toInt())
     writeUByte(value.ordinal.toUByte())
 }
+
+public inline fun <reified T : Enum<T>> InputStream.readEnumShort(): T = enumValues<T>()[readUShort().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumShort(value: T) {
+    require(value.ordinal < UShort.MAX_VALUE.toInt())
+    writeUShort(value.ordinal.toUShort())
+}
+
+public inline fun <reified T : Enum<T>> InputStream.readEnumInt(): T = enumValues<T>()[readInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumInt(value: T): Unit = writeInt(value.ordinal)
