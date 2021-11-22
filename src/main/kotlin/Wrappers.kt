@@ -83,14 +83,14 @@ public inline fun <K, V> OutputStream.writeMap(
 
 // Testing
 
-public inline fun makeByteArray(isCompressed: Boolean = false, action: OutputStream.() -> Unit): ByteArray {
+public inline fun makeByteArray(isCompressed: Boolean, action: OutputStream.() -> Unit): ByteArray {
     val base = ByteArrayOutputStream()
     val target = if (isCompressed) GZIPOutputStream(base) else base
     target.use(action)
     return base.toByteArray()
 }
 
-public fun ByteArray.asInputStream(isCompressed: Boolean = true): InputStream {
+public fun ByteArray.asInputStream(isCompressed: Boolean): InputStream {
     val base = ByteArrayInputStream(this)
     return if (isCompressed) GZIPInputStream(base) else base
 }
@@ -98,5 +98,5 @@ public fun ByteArray.asInputStream(isCompressed: Boolean = true): InputStream {
 public inline fun <T> ByteArray.asInputStream(isCompressed: Boolean, action: InputStream.() -> T): T =
     asInputStream(isCompressed).use(action)
 
-public inline fun makeInputStream(isCompressed: Boolean = true, action: OutputStream.() -> Unit): InputStream =
+public inline fun makeInputStream(isCompressed: Boolean, action: OutputStream.() -> Unit): InputStream =
     makeByteArray(isCompressed, action).asInputStream(isCompressed)
