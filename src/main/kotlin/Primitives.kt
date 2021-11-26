@@ -14,11 +14,18 @@ public fun OutputStream.writeByte(value: Byte): Unit = write(value.toInt() and 0
 public fun InputStream.readUByte(): UByte = readByte().toUByte()
 public fun OutputStream.writeUByte(value: UByte): Unit = writeByte(value.toByte())
 
-public fun InputStream.readShort(): Short = (((readOrThrow() and 0xFF) shl 8) or (readOrThrow() and 0xFF)).toShort()
+public fun InputStream.readShort(): Short {
+    var value = 0
+    repeat(Short.SIZE_BYTES) {
+        value = value shl 8 or (readOrThrow() and 0xFF)
+    }
+    return value.toShort()
+}
+
 public fun OutputStream.writeShort(value: Short) {
-    val x = value.toInt()
-    write(x ushr 8 and 0xFF)
-    write(x and 0xFF)
+    repeat(Short.SIZE_BYTES) {
+        write(value.toInt() ushr (Short.SIZE_BYTES - 1 - it) * 8 and 0xFF)
+    }
 }
 
 public fun InputStream.readUShort(): UShort = readShort().toUShort()
@@ -26,26 +33,33 @@ public fun OutputStream.writeUShort(value: UShort): Unit = writeShort(value.toSh
 
 public fun InputStream.readInt(): Int {
     var value = 0
-    repeat(4) {
+    repeat(Int.SIZE_BYTES) {
         value = value shl 8 or (readOrThrow() and 0xFF)
     }
     return value
 }
 
 public fun OutputStream.writeInt(value: Int) {
-    write(value ushr 24 and 0xFF)
-    write(value ushr 16 and 0xFF)
-    write(value ushr 8 and 0xFF)
-    write(value and 0xFF)
+    repeat(Int.SIZE_BYTES) {
+        write(value ushr (Int.SIZE_BYTES - 1 - it) * 8 and 0xFF)
+    }
 }
 
 public fun InputStream.readUInt(): UInt = readInt().toUInt()
 public fun OutputStream.writeUInt(value: UInt): Unit = writeInt(value.toInt())
 
-public fun InputStream.readLong(): Long = (readInt().toLong() shl 32) or (readInt().toLong() and 0xFF_FF_FF_FF)
+public fun InputStream.readLong(): Long {
+    var value = 0L
+    repeat(Long.SIZE_BYTES) {
+        value = value shl 8 or (readOrThrow() and 0xFF).toLong()
+    }
+    return value
+}
+
 public fun OutputStream.writeLong(value: Long) {
-    writeInt(value.ushr(32).toInt())
-    write((value and 0xFF_FF_FF_FF).toInt())
+    repeat(Long.SIZE_BYTES) {
+        write((value ushr (Long.SIZE_BYTES - 1 - it) * 8 and 0xFF).toInt())
+    }
 }
 
 public fun InputStream.readULong(): ULong = readLong().toULong()
@@ -60,7 +74,7 @@ public fun OutputStream.writeDouble(value: Double): Unit = writeLong(value.toRaw
 public fun InputStream.readString(): String {
     val count = readInt()
     val bytes = ByteArray(count)
-    require(read(bytes) == count)
+    check(read(bytes) == count)
     return bytes.decodeToString()
 }
 
@@ -88,17 +102,17 @@ public inline fun <reified T : Enum<T>> OutputStream.writeEnum(value: T) {
     }
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByte(): T = enumValues<T>()[readUByte().toInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumByte(value: T) {
+public inline fun <reified T : Enum<T>> InputStream.readEnumAsByte(): T = enumValues<T>()[readUByte().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumAsByte(value: T) {
     require(value.ordinal < UByte.MAX_VALUE.toInt())
     writeUByte(value.ordinal.toUByte())
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumShort(): T = enumValues<T>()[readUShort().toInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumShort(value: T) {
+public inline fun <reified T : Enum<T>> InputStream.readEnumAsShort(): T = enumValues<T>()[readUShort().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumAsShort(value: T) {
     require(value.ordinal < UShort.MAX_VALUE.toInt())
     writeUShort(value.ordinal.toUShort())
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumInt(): T = enumValues<T>()[readInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumInt(value: T): Unit = writeInt(value.ordinal)
+public inline fun <reified T : Enum<T>> InputStream.readEnumAsInt(): T = enumValues<T>()[readInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumAsInt(value: T): Unit = writeInt(value.ordinal)

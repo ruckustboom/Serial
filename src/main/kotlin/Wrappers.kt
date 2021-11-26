@@ -100,3 +100,9 @@ public inline fun <T> ByteArray.asInputStream(isCompressed: Boolean, action: Inp
 
 public inline fun makeInputStream(isCompressed: Boolean, action: OutputStream.() -> Unit): InputStream =
     makeByteArray(isCompressed, action).asInputStream(isCompressed)
+
+public inline fun <T> fullWriteAndRead(
+    isCompressed: Boolean,
+    write: OutputStream.() -> Unit,
+    read: InputStream.() -> T,
+): T = makeByteArray(isCompressed, write).asInputStream(isCompressed, read)
