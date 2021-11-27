@@ -69,6 +69,7 @@ class TestWrappers {
     fun testLists() {
         val values = List(20) { it.toString(2) }
         val serialized = makeByteArray(false) { writeValues(values, OutputStream::writeString) }
+        assertEquals(154, serialized.size)
         assertEquals(values, serialized.asInputStream(false) { readValues(InputStream::readString) })
         assertEquals(values, serialized.asInputStream(false) {
             val x = mutableListOf<String>()
@@ -82,5 +83,15 @@ class TestWrappers {
         })
     }
 
-    // TODO: Test Maps
+    @Test
+    fun testMaps() {
+        val map = mapOf("one" to 1, "two" to 2, "three" to 3)
+        val serialized = makeByteArray(false) {
+            writeMap(map, OutputStream::writeString, OutputStream::writeInt)
+        }
+        assertEquals(39, serialized.size)
+        assertEquals(map, serialized.asInputStream(false) {
+            readMap({ readString() }, { readInt() })
+        })
+    }
 }
