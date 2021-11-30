@@ -4,8 +4,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
 
 public fun InputStream.readOrThrow(): Int {
     val x = read()
@@ -83,26 +81,16 @@ public inline fun <K, V> OutputStream.writeMap(
 
 // Testing
 
-public inline fun makeByteArray(isCompressed: Boolean, action: OutputStream.() -> Unit): ByteArray {
-    val base = ByteArrayOutputStream()
-    val target = if (isCompressed) GZIPOutputStream(base) else base
-    target.use(action)
-    return base.toByteArray()
+public inline fun makeByteArray(action: OutputStream.() -> Unit): ByteArray = with(ByteArrayOutputStream()) {
+    use(action)
+    toByteArray()
 }
 
-public fun ByteArray.asInputStream(isCompressed: Boolean): InputStream {
-    val base = ByteArrayInputStream(this)
-    return if (isCompressed) GZIPInputStream(base) else base
-}
+public inline fun <T> ByteArray.asInputStream(action: InputStream.() -> T): T =
+    ByteArrayInputStream(this).use(action)
 
-public inline fun <T> ByteArray.asInputStream(isCompressed: Boolean, action: InputStream.() -> T): T =
-    asInputStream(isCompressed).use(action)
+public inline fun makeInputStream(action: OutputStream.() -> Unit): InputStream =
+    ByteArrayInputStream(makeByteArray(action))
 
-public inline fun makeInputStream(isCompressed: Boolean, action: OutputStream.() -> Unit): InputStream =
-    makeByteArray(isCompressed, action).asInputStream(isCompressed)
-
-public inline fun <T> fullWriteAndRead(
-    isCompressed: Boolean,
-    write: OutputStream.() -> Unit,
-    read: InputStream.() -> T,
-): T = makeByteArray(isCompressed, write).asInputStream(isCompressed, read)
+public inline fun <T> fullWriteAndRead(write: OutputStream.() -> Unit, read: InputStream.() -> T): T =
+    makeByteArray(write).asInputStream(read)

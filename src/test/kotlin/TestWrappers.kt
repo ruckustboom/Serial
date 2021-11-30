@@ -10,21 +10,21 @@ import kotlin.test.fail
 class TestWrappers {
     @Test
     fun testReadOrThrow() {
-        val bytes = makeByteArray(false) {
+        val bytes = makeByteArray {
             writeByte(0)
             writeByte(1)
             writeByte(-1)
             writeByte(127)
             writeByte(-128)
         }
-        bytes.asInputStream(false).use {
-            assertEquals(0, it.readOrThrow())
-            assertEquals(1, it.readOrThrow())
-            assertEquals(255, it.readOrThrow())
-            assertEquals(127, it.readOrThrow())
-            assertEquals(128, it.readOrThrow())
+        bytes.asInputStream {
+            assertEquals(0, readOrThrow())
+            assertEquals(1, readOrThrow())
+            assertEquals(255, readOrThrow())
+            assertEquals(127, readOrThrow())
+            assertEquals(128, readOrThrow())
             try {
-                val x = it.readOrThrow()
+                val x = readOrThrow()
                 fail("Expected EOI, found $x")
             } catch (e: IllegalStateException) {
                 assertEquals("Reached end of stream", e.message)
@@ -36,17 +36,13 @@ class TestWrappers {
 
     @Test
     fun testNullable() {
-        val five = makeByteArray(false) {
-            writeNullable(5, OutputStream::writeInt)
-        }
+        val five = makeByteArray { writeNullable(5, OutputStream::writeInt) }
         assertEquals(5, five.size)
-        assertEquals(5, five.asInputStream(false) { readNullable(InputStream::readInt) })
+        assertEquals(5, five.asInputStream { readNullable(InputStream::readInt) })
 
-        val nil = makeByteArray(false) {
-            writeNullable(null, OutputStream::writeInt)
-        }
+        val nil = makeByteArray { writeNullable(null, OutputStream::writeInt) }
         assertEquals(1, nil.size)
-        assertEquals(null, nil.asInputStream(false) { readNullable(InputStream::readInt) })
+        assertEquals(null, nil.asInputStream { readNullable(InputStream::readInt) })
     }
 
     @Test
@@ -54,7 +50,6 @@ class TestWrappers {
         assertContentEquals(
             IntArray(20) { it },
             fullWriteAndRead(
-                false,
                 { repeatWrite(20, OutputStream::writeInt) },
                 {
                     val ints = IntArray(20)
@@ -68,15 +63,15 @@ class TestWrappers {
     @Test
     fun testLists() {
         val values = List(20) { it.toString(2) }
-        val serialized = makeByteArray(false) { writeValues(values, OutputStream::writeString) }
+        val serialized = makeByteArray { writeValues(values, OutputStream::writeString) }
         assertEquals(154, serialized.size)
-        assertEquals(values, serialized.asInputStream(false) { readValues(InputStream::readString) })
-        assertEquals(values, serialized.asInputStream(false) {
+        assertEquals(values, serialized.asInputStream { readValues(InputStream::readString) })
+        assertEquals(values, serialized.asInputStream {
             val x = mutableListOf<String>()
             readValuesTo(x, InputStream::readString)
             x
         })
-        assertEquals(values, serialized.asInputStream(false) {
+        assertEquals(values, serialized.asInputStream {
             val x = mutableListOf<String>()
             readValues(InputStream::readString, x::add)
             x
@@ -86,11 +81,11 @@ class TestWrappers {
     @Test
     fun testMaps() {
         val map = mapOf("one" to 1, "two" to 2, "three" to 3)
-        val serialized = makeByteArray(false) {
+        val serialized = makeByteArray {
             writeMap(map, OutputStream::writeString, OutputStream::writeInt)
         }
         assertEquals(39, serialized.size)
-        assertEquals(map, serialized.asInputStream(false) {
+        assertEquals(map, serialized.asInputStream {
             readMap({ readString() }, { readInt() })
         })
     }
