@@ -1,6 +1,5 @@
 package serial
 
-import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 public interface BinaryParseState {
@@ -23,37 +22,37 @@ public class BinaryParseException(
 
 // Some common helpers
 
-public fun InputStream.initParse(): BinaryParseState = BinaryParseStateImpl(this).apply { next() }
+public fun InputStream.initParse(): BinaryParseState = InputStreamBinaryParseState(this).apply { next() }
+public fun ByteArray.initParse(): BinaryParseState = ByteArrayBinaryParseState(this).apply { next() }
+
+public inline fun <T> BinaryParseState.parse(consumeAll: Boolean = true, parse: BinaryParseState.() -> T): T {
+    val result = parse()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
+    return result
+}
 
 public inline fun <T> InputStream.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
-    parse: BinaryParseState.() -> T
-): T = with(initParse()) {
-    val result = parse()
-    if (closeWhenDone) close()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
-    result
-}
+    parse: BinaryParseState.() -> T,
+): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
     parse: BinaryParseState.() -> T,
-): T = ByteArrayInputStream(this).use { it.parse(consumeAll, true, parse) }
+): T = with(initParse()) { parse(consumeAll, parse) }
+
+public inline fun <T> BinaryParseState.parseMultiple(parse: BinaryParseState.() -> T): List<T> =
+    buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T> InputStream.parseMultiple(
     closeWhenDone: Boolean = true,
     parse: BinaryParseState.() -> T,
-): List<T> = with(initParse()) {
-    val results = mutableListOf<T>()
-    while (!isEndOfInput) results += parse()
-    if (closeWhenDone) close()
-    results
-}
+): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parseMultiple(
     parse: BinaryParseState.() -> T,
-): List<T> = ByteArrayInputStream(this).use { it.parseMultiple(true, parse) }
+): List<T> = with(initParse()) { parseMultiple(parse) }
 
 public fun BinaryParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw BinaryParseException(offset, current, message, cause)
@@ -92,18 +91,44 @@ public fun BinaryParseState.readLiteral(bytes: ByteArray): Unit = bytes.forEach(
 
 // Implementation
 
-private class BinaryParseStateImpl(private val stream: InputStream) : BinaryParseState {
-    override var offset = -1
+private abstract class BinaryParseStateBase : BinaryParseState {
+    final override var offset = -1
+        private set
+
+    fun advance() {
+        ensure(!isEndOfInput) { "Unexpected EOI" }
+        if (isCapturing) addToCapture(current)
+        offset++
+    }
+
+    private val capture = ByteArrayBuilder()
+    private var isCapturing = false
+
+    final override fun startCapture() {
+        isCapturing = true
+    }
+
+    final override fun pauseCapture() {
+        isCapturing = false
+    }
+
+    final override fun addToCapture(byte: Byte) {
+        capture.append(byte)
+    }
+
+    final override fun finishCapture(): ByteArray {
+        isCapturing = false
+        return capture.truncate()
+    }
+}
+
+private class InputStreamBinaryParseState(private val stream: InputStream) : BinaryParseStateBase() {
     override var current: Byte = 0
     override var isEndOfInput = false
 
-    // Read
-
     override fun next() {
-        ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(current)
+        advance()
         val next = stream.read()
-        offset++
         if (next >= 0) {
             current = next.toByte()
         } else {
@@ -111,28 +136,13 @@ private class BinaryParseStateImpl(private val stream: InputStream) : BinaryPars
             isEndOfInput = true
         }
     }
+}
 
-    // Capture
+private class ByteArrayBinaryParseState(private val bytes: ByteArray) : BinaryParseStateBase() {
+    override val current get() = if (offset in bytes.indices) bytes[offset] else -1
+    override val isEndOfInput get() = offset >= bytes.size
 
-    private val capture = ByteArrayBuilder()
-    private var isCapturing = false
-
-    override fun startCapture() {
-        isCapturing = true
-    }
-
-    override fun pauseCapture() {
-        isCapturing = false
-    }
-
-    override fun addToCapture(byte: Byte) {
-        capture.append(byte)
-    }
-
-    override fun finishCapture(): ByteArray {
-        isCapturing = false
-        return capture.truncate()
-    }
+    override fun next() = advance()
 }
 
 private const val DEFAULT_BYTES_COUNT = 8

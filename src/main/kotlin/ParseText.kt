@@ -1,7 +1,6 @@
 package serial
 
 import java.io.Reader
-import java.io.StringReader
 
 public interface TextParseState {
     public val offset: Int
@@ -27,37 +26,38 @@ public class TextParseException(
 
 // Some common helpers
 
-public fun Reader.initParse(): TextParseState = TextParseStateImpl(this).apply { next() }
+public fun Reader.initParse(): TextParseState = ReaderTextParseState(this).apply { next() }
+public fun String.initParse(): TextParseState = StringTextParseState(this).apply { next() }
+
+public inline fun <T> TextParseState.parse(consumeAll: Boolean = true, parse: TextParseState.() -> T): T {
+    val result = parse()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
+    return result
+}
 
 public inline fun <T> Reader.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: TextParseState.() -> T,
-): T = with(initParse()) {
-    val result = parse()
-    if (closeWhenDone) close()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
-    result
-}
+): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> String.parse(
     consumeAll: Boolean = true,
     parse: TextParseState.() -> T,
-): T = StringReader(this).use { it.parse(consumeAll, true, parse) }
+): T = with(initParse()) { parse(consumeAll, parse) }
+
+public inline fun <T> TextParseState.parseMultiple(
+    parse: TextParseState.() -> T,
+): List<T> = buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T> Reader.parseMultiple(
     closeWhenDone: Boolean = true,
     parse: TextParseState.() -> T,
-): List<T> = with(initParse()) {
-    val results = mutableListOf<T>()
-    while (!isEndOfInput) results += parse()
-    if (closeWhenDone) close()
-    results
-}
+): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> String.parseMultiple(
     parse: TextParseState.() -> T,
-): List<T> = StringReader(this).use { it.parseMultiple(true, parse) }
+): List<T> = with(initParse()) { parseMultiple(parse) }
 
 public fun TextParseState.crash(message: String, cause: Throwable? = null): Nothing =
     throw TextParseException(offset, line, offset - lineStart + 1, current, message, cause)
@@ -101,16 +101,15 @@ public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = fal
 
 // Implementation
 
-private class TextParseStateImpl(private val stream: Reader) : TextParseState {
-    override var offset = -1
-    override var line = 1
-    override var lineStart = 0
-    override var current = '\u0000'
-    override var isEndOfInput = false
+private abstract class TextParseStateBase : TextParseState {
+    final override var offset = -1
+        private set
+    final override var line = 1
+        private set
+    final override var lineStart = 0
+        private set
 
-    // Read
-
-    override fun next() {
+    protected fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
         if (isCapturing) addToCapture(current)
         // Check for newline
@@ -118,8 +117,46 @@ private class TextParseStateImpl(private val stream: Reader) : TextParseState {
             line++
             lineStart = offset
         }
-        val next = stream.read()
         offset++
+    }
+
+    private val capture = StringBuilder()
+    private var isCapturing = false
+
+    final override fun startCapture() {
+        isCapturing = true
+    }
+
+    final override fun pauseCapture() {
+        isCapturing = false
+    }
+
+    final override fun addToCapture(char: Char) {
+        capture.append(char)
+    }
+
+    final override fun finishCapture(): String {
+        isCapturing = false
+        val text = capture.toString()
+        capture.setLength(0)
+        return text
+    }
+}
+
+private class StringTextParseState(private val string: String) : TextParseStateBase() {
+    override val current = if (offset in string.indices) string[offset] else '\u0000'
+    override val isEndOfInput get() = offset >= string.length
+
+    override fun next() = advance()
+}
+
+private class ReaderTextParseState(private val reader: Reader) : TextParseStateBase() {
+    override var current = '\u0000'
+    override var isEndOfInput = false
+
+    override fun next() {
+        advance()
+        val next = reader.read()
         if (next >= 0) {
             current = next.toChar()
         } else {
@@ -127,32 +164,4 @@ private class TextParseStateImpl(private val stream: Reader) : TextParseState {
             isEndOfInput = true
         }
     }
-
-    // Capture
-
-    private val capture = StringBuilder()
-    private var isCapturing = false
-
-    override fun startCapture() {
-        isCapturing = true
-    }
-
-    override fun pauseCapture() {
-        isCapturing = false
-    }
-
-    override fun addToCapture(char: Char) {
-        capture.append(char)
-    }
-
-    override fun finishCapture(): String {
-        isCapturing = false
-        return capture.truncate()
-    }
-}
-
-private fun StringBuilder.truncate(): String {
-    val text = toString()
-    setLength(0)
-    return text
 }

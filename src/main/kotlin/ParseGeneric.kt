@@ -22,7 +22,7 @@ public class ParseException(
 
 // Some common helpers
 
-public fun <T> Iterator<T>.initParse(): ParseState<T> = ParseStateImpl(iterator()).apply { next() }
+public fun <T> Iterator<T>.initParse(): ParseState<T> = IteratorParseState(this).apply { next() }
 
 public inline fun <T, R> Iterator<T>.parse(
     consumeAll: Boolean = true,
@@ -97,8 +97,40 @@ public fun <T> ParseState<T>.readLiteral(literal: List<T>): Unit =
 
 // Implementation
 
-private class ParseStateImpl<T>(private val stream: Iterator<T>) : ParseState<T> {
-    override var offset = -1
+private abstract class ParseStateBase<T> : ParseState<T> {
+    final override var offset = -1
+        private set
+
+    fun advance() {
+        ensure(!isEndOfInput) { "Unexpected EOI" }
+        if (isCapturing) addToCapture(current)
+        offset++
+    }
+
+    private val capture = mutableListOf<T>()
+    private var isCapturing = false
+
+    final override fun startCapture() {
+        isCapturing = true
+    }
+
+    final override fun pauseCapture() {
+        isCapturing = false
+    }
+
+    final override fun addToCapture(value: T) {
+        capture += value
+    }
+
+    final override fun finishCapture(): List<T> {
+        isCapturing = false
+        val copy = capture.toList()
+        capture.clear()
+        return copy
+    }
+}
+
+private class IteratorParseState<T>(private val iter: Iterator<T>) : ParseStateBase<T>() {
     override var isEndOfInput = false
 
     @Suppress("UNCHECKED_CAST")
@@ -107,43 +139,13 @@ private class ParseStateImpl<T>(private val stream: Iterator<T>) : ParseState<T>
     // Read
 
     override fun next() {
-        ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(current)
-        offset++
-        if (stream.hasNext()) {
-            current = stream.next()
+        advance()
+        if (iter.hasNext()) {
+            current = iter.next()
         } else {
             @Suppress("UNCHECKED_CAST")
             current = null as T
             isEndOfInput = true
         }
     }
-
-    // Capture
-
-    private val capture = mutableListOf<T>()
-    private var isCapturing = false
-
-    override fun startCapture() {
-        isCapturing = true
-    }
-
-    override fun pauseCapture() {
-        isCapturing = false
-    }
-
-    override fun addToCapture(value: T) {
-        capture += value
-    }
-
-    override fun finishCapture(): List<T> {
-        isCapturing = false
-        return capture.truncate()
-    }
-}
-
-private fun <T> MutableList<T>.truncate(): List<T> {
-    val copy = toList()
-    clear()
-    return copy
 }
