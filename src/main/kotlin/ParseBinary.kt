@@ -82,6 +82,14 @@ public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): B
     return finishCapture()
 }
 
+public fun BinaryParseState.capture(count: Int): ByteArray {
+    startCapture()
+    repeat(count) {
+        next()
+    }
+    return finishCapture()
+}
+
 public fun BinaryParseState.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
 public fun BinaryParseState.readRequiredByte(byte: Byte): Unit =

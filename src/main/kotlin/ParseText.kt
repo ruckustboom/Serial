@@ -87,6 +87,14 @@ public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): Str
     return finishCapture()
 }
 
+public fun TextParseState.capture(count: Int): String {
+    startCapture()
+    repeat(count) {
+        next()
+    }
+    return finishCapture()
+}
+
 public fun TextParseState.skipWhitespace(): Int = readWhile { it.isWhitespace() }
 
 public fun TextParseState.readOptionalChar(char: Char, ignoreCase: Boolean = false): Boolean =

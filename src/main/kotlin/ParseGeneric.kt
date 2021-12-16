@@ -87,6 +87,14 @@ public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): Lis
     return finishCapture()
 }
 
+public fun <T> ParseState<T>.capture(count: Int): List<T> {
+    startCapture()
+    repeat(count) {
+        next()
+    }
+    return finishCapture()
+}
+
 public fun <T> ParseState<T>.readOptionalValue(value: T): Boolean = readIf { it == value }
 
 public fun <T> ParseState<T>.readRequiredValue(value: T): Unit =
