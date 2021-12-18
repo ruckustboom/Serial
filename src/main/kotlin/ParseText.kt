@@ -152,7 +152,7 @@ private abstract class TextParseStateBase : TextParseState {
 }
 
 private class StringTextParseState(private val string: String) : TextParseStateBase() {
-    override val current = if (offset in string.indices) string[offset] else '\u0000'
+    override val current get() = if (offset in string.indices) string[offset] else '\u0000'
     override val isEndOfInput get() = offset >= string.length
 
     override fun next() = advance()
