@@ -120,24 +120,29 @@ class TestPrimitives {
     fun testEnums() {
         val values = enumValues<TestEnum>().toList()
         val serialized = makeByteArray { for (value in values) writeEnum(value) }
-        assertEquals(4, serialized.size)
+        assertEquals(20, serialized.size)
         val deserialized = serialized.asInputStream { List(values.size) { readEnum<TestEnum>() } }
         assertEquals(values, deserialized)
 
-        val serializedBytes = makeByteArray { for (value in values) writeEnumAsByte(value) }
+        val serializedBytes = makeByteArray { for (value in values) writeEnumByte(value) }
         assertEquals(4, serializedBytes.size)
-        val deserializedBytes = serializedBytes.asInputStream { List(values.size) { readEnumAsByte<TestEnum>() } }
+        val deserializedBytes = serializedBytes.asInputStream { List(values.size) { readEnumByte<TestEnum>() } }
         assertEquals(values, deserializedBytes)
 
-        val serializedShorts = makeByteArray { for (value in values) writeEnumAsShort(value) }
+        val serializedShorts = makeByteArray { for (value in values) writeEnumShort(value) }
         assertEquals(8, serializedShorts.size)
-        val deserializedShorts = serializedShorts.asInputStream { List(values.size) { readEnumAsShort<TestEnum>() } }
+        val deserializedShorts = serializedShorts.asInputStream { List(values.size) { readEnumShort<TestEnum>() } }
         assertEquals(values, deserializedShorts)
 
-        val serializedInts = makeByteArray { for (value in values) writeEnumAsInt(value) }
+        val serializedInts = makeByteArray { for (value in values) writeEnumInt(value) }
         assertEquals(16, serializedInts.size)
-        val deserializedInts = serializedInts.asInputStream { List(values.size) { readEnumAsInt<TestEnum>() } }
+        val deserializedInts = serializedInts.asInputStream { List(values.size) { readEnumInt<TestEnum>() } }
         assertEquals(values, deserializedInts)
+
+        val serializedAuto = makeByteArray { for (value in values) writeEnumAuto(value) }
+        assertEquals(4, serializedAuto.size)
+        val deserializedAuto = serializedAuto.asInputStream { List(values.size) { readEnumAuto<TestEnum>() } }
+        assertEquals(values, deserializedAuto)
     }
 
     private enum class TestEnum { A, B, C, D }
