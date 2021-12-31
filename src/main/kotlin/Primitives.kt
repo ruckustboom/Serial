@@ -116,3 +116,6 @@ public inline fun <reified T : Enum<T>> OutputStream.writeEnumAsShort(value: T) 
 
 public inline fun <reified T : Enum<T>> InputStream.readEnumAsInt(): T = enumValues<T>()[readInt()]
 public inline fun <reified T : Enum<T>> OutputStream.writeEnumAsInt(value: T): Unit = writeInt(value.ordinal)
+
+public inline fun <reified T : Enum<T>> InputStream.readEnumAsString(): T = enumValueOf(readString())
+public fun <T : Enum<T>> OutputStream.writeEnumAsString(value: T): Unit = writeString(value.name)
