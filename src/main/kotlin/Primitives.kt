@@ -84,10 +84,10 @@ public fun OutputStream.writeString(value: String) {
     write(bytes)
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnum(): T = enumValueOf(readString())
-public fun <T : Enum<T>> OutputStream.writeEnum(value: T): Unit = writeString(value.name)
+public inline fun <reified T : Enum<T>> InputStream.readEnumByName(): T = enumValueOf(readString())
+public fun <T : Enum<T>> OutputStream.writeEnumByName(value: T): Unit = writeString(value.name)
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumAuto(): T {
+public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalAuto(): T {
     val variants = enumValues<T>()
     return variants[when {
         variants.size <= UByte.MAX_VALUE.toInt() -> readUByte().toInt()
@@ -96,7 +96,7 @@ public inline fun <reified T : Enum<T>> InputStream.readEnumAuto(): T {
     }]
 }
 
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumAuto(value: T) {
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumByOrdinalAuto(value: T) {
     val variants = enumValues<T>()
     when {
         variants.size <= UByte.MAX_VALUE.toInt() -> writeUByte(value.ordinal.toUByte())
@@ -105,17 +105,17 @@ public inline fun <reified T : Enum<T>> OutputStream.writeEnumAuto(value: T) {
     }
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByte(): T = enumValues<T>()[readUByte().toInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumByte(value: T) {
+public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalByte(): T = enumValues<T>()[readUByte().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumByOrdinalByte(value: T) {
     require(value.ordinal < UByte.MAX_VALUE.toInt())
     writeUByte(value.ordinal.toUByte())
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumShort(): T = enumValues<T>()[readUShort().toInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumShort(value: T) {
+public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalShort(): T = enumValues<T>()[readUShort().toInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumByOrdinalShort(value: T) {
     require(value.ordinal < UShort.MAX_VALUE.toInt())
     writeUShort(value.ordinal.toUShort())
 }
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumInt(): T = enumValues<T>()[readInt()]
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumInt(value: T): Unit = writeInt(value.ordinal)
+public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinal(): T = enumValues<T>()[readInt()]
+public inline fun <reified T : Enum<T>> OutputStream.writeEnumByOrdinal(value: T): Unit = writeInt(value.ordinal)
