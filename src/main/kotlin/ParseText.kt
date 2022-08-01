@@ -81,21 +81,21 @@ public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
     return count
 }
 
-public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): String {
+public inline fun TextParseState.capture(action: TextParseState.() -> Unit): String {
     startCapture()
-    readWhile(predicate)
+    action()
     return finishCapture()
 }
 
-public fun TextParseState.capture(count: Int): String {
-    startCapture()
-    repeat(count) {
-        next()
-    }
-    return finishCapture()
-}
+public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): String =
+    capture { readWhile(predicate) }
 
-public fun TextParseState.skipWhitespace(): Int = readWhile { it.isWhitespace() }
+public fun TextParseState.capture(count: Int): String =
+    capture { repeat(count) { next() } }
+
+public fun TextParseState.addToCapture(literal: String): Unit = literal.forEach(::addToCapture)
+
+public fun TextParseState.skipWhitespace(): Int = readWhile(Char::isWhitespace)
 
 public fun TextParseState.readOptionalChar(char: Char, ignoreCase: Boolean = false): Boolean =
     readIf { it.equals(char, ignoreCase) }
@@ -103,9 +103,8 @@ public fun TextParseState.readOptionalChar(char: Char, ignoreCase: Boolean = fal
 public fun TextParseState.readRequiredChar(char: Char, ignoreCase: Boolean = false): Unit =
     ensure(readOptionalChar(char, ignoreCase)) { "Expected: $char" }
 
-public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = false) {
-    for (char in literal) readRequiredChar(char, ignoreCase)
-}
+public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
+    literal.forEach { readRequiredChar(it, ignoreCase) }
 
 // Implementation
 

@@ -76,19 +76,19 @@ public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int 
     return count
 }
 
-public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray {
+public inline fun BinaryParseState.capture(action: BinaryParseState.() -> Unit): ByteArray {
     startCapture()
-    readWhile(predicate)
+    action()
     return finishCapture()
 }
 
-public fun BinaryParseState.capture(count: Int): ByteArray {
-    startCapture()
-    repeat(count) {
-        next()
-    }
-    return finishCapture()
-}
+public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
+    capture { readWhile(predicate) }
+
+public fun BinaryParseState.capture(count: Int): ByteArray =
+    capture { repeat(count) { next() } }
+
+public fun BinaryParseState.addToCapture(literal: ByteArray): Unit = literal.forEach(::addToCapture)
 
 public fun BinaryParseState.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
@@ -147,7 +147,7 @@ private class InputStreamBinaryParseState(private val stream: InputStream) : Bin
 }
 
 private class ByteArrayBinaryParseState(private val bytes: ByteArray) : BinaryParseStateBase() {
-    override val current get() = if (offset in bytes.indices) bytes[offset] else -1
+    override val current get() = if (offset in bytes.indices) bytes[offset] else 0
     override val isEndOfInput get() = offset >= bytes.size
 
     override fun next() = advance()

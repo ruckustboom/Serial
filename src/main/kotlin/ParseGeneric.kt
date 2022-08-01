@@ -81,19 +81,19 @@ public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
     return count
 }
 
-public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> ParseState<T>.capture(action: ParseState<T>.() -> Unit): List<T> {
     startCapture()
-    readWhile(predicate)
+    action()
     return finishCapture()
 }
 
-public fun <T> ParseState<T>.capture(count: Int): List<T> {
-    startCapture()
-    repeat(count) {
-        next()
-    }
-    return finishCapture()
-}
+public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
+    capture { readWhile(predicate) }
+
+public fun <T> ParseState<T>.capture(count: Int): List<T> =
+    capture { repeat(count) { next() } }
+
+public fun <T> ParseState<T>.addToCapture(literal: List<T>): Unit = literal.forEach(::addToCapture)
 
 public fun <T> ParseState<T>.readOptionalValue(value: T): Boolean = readIf { it == value }
 
