@@ -6,6 +6,7 @@ public interface BinaryParseState {
     public val offset: Int
     public val current: Byte
     public val isEndOfInput: Boolean
+    public val isCapturing: Boolean
     public fun next()
     public fun startCapturing()
     public fun stopCapturing()
@@ -78,6 +79,7 @@ public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int 
 }
 
 public fun BinaryParseState.finishCapturing(): ByteArray {
+    ensure(isCapturing) { "Not currently capturing" }
     stopCapturing()
     val result = getCaptured()
     purgeCaptured()
@@ -85,9 +87,17 @@ public fun BinaryParseState.finishCapturing(): ByteArray {
 }
 
 public inline fun BinaryParseState.capturing(action: BinaryParseState.() -> Unit): ByteArray {
+    ensure(!isCapturing) { "Already capturing" }
     startCapturing()
     action()
     return finishCapturing()
+}
+
+public inline fun BinaryParseState.notCapturing(action: BinaryParseState.() -> Unit) {
+    ensure(isCapturing) { "Not currently capturing" }
+    stopCapturing()
+    action()
+    startCapturing()
 }
 
 public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
@@ -118,7 +128,7 @@ private abstract class BinaryParseStateBase : BinaryParseState {
     }
 
     private val currentCapture = ByteArrayBuilder()
-    private var isCapturing = false
+    override var isCapturing = false
 
     final override fun startCapturing() {
         isCapturing = true

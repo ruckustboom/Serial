@@ -8,6 +8,7 @@ public interface TextParseState {
     public val lineStart: Int
     public val current: Char
     public val isEndOfInput: Boolean
+    public val isCapturing: Boolean
     public fun next()
     public fun startCapturing()
     public fun stopCapturing()
@@ -83,6 +84,7 @@ public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
 }
 
 public fun TextParseState.finishCapturing(): String {
+    ensure(isCapturing) { "Not currently capturing" }
     stopCapturing()
     val result = getCaptured()
     purgeCaptured()
@@ -90,9 +92,17 @@ public fun TextParseState.finishCapturing(): String {
 }
 
 public inline fun TextParseState.capturing(action: TextParseState.() -> Unit): String {
+    ensure(!isCapturing) { "Already capturing" }
     startCapturing()
     action()
     return finishCapturing()
+}
+
+public inline fun TextParseState.notCapturing(action: TextParseState.() -> Unit) {
+    ensure(isCapturing) { "Not currently capturing" }
+    stopCapturing()
+    action()
+    startCapturing()
 }
 
 public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): String =
@@ -136,7 +146,7 @@ private abstract class TextParseStateBase : TextParseState {
     }
 
     private val currentCapture = StringBuilder()
-    private var isCapturing = false
+    override var isCapturing = false
 
     final override fun startCapturing() {
         isCapturing = true

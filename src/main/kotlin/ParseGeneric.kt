@@ -6,6 +6,7 @@ public interface ParseState<T> {
     public val offset: Int
     public val current: T
     public val isEndOfInput: Boolean
+    public val isCapturing: Boolean
     public fun next()
     public fun startCapturing()
     public fun stopCapturing()
@@ -83,6 +84,7 @@ public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
 }
 
 public fun <T> ParseState<T>.finishCapturing(): List<T> {
+    ensure(isCapturing) { "Not currently capturing" }
     stopCapturing()
     val result = getCaptured()
     purgeCaptured()
@@ -90,9 +92,17 @@ public fun <T> ParseState<T>.finishCapturing(): List<T> {
 }
 
 public inline fun <T> ParseState<T>.capturing(action: ParseState<T>.() -> Unit): List<T> {
+    ensure(!isCapturing) { "Already capturing" }
     startCapturing()
     action()
     return finishCapturing()
+}
+
+public inline fun <T> ParseState<T>.notCapturing(action: ParseState<T>.() -> Unit) {
+    ensure(isCapturing) { "Not currently capturing" }
+    stopCapturing()
+    action()
+    startCapturing()
 }
 
 public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
@@ -124,7 +134,7 @@ private abstract class ParseStateBase<T> : ParseState<T> {
     }
 
     private val currentCapture = mutableListOf<T>()
-    private var isCapturing = false
+    override var isCapturing = false
 
     final override fun startCapturing() {
         isCapturing = true
