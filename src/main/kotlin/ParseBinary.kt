@@ -3,10 +3,10 @@ package serial
 import java.io.InputStream
 
 @DslMarker
-public annotation class BinaryCursorMarker
+public annotation class ByteCursorMarker
 
-@BinaryCursorMarker
-public interface BinaryCursor {
+@ByteCursorMarker
+public interface ByteCursor {
     public val offset: Int
     public val current: Byte
     public val isEndOfInput: Boolean
@@ -22,12 +22,12 @@ public class BinaryParseException(
 
 // Some common helpers
 
-public fun InputStream.initParse(): BinaryCursor = InputStreamBinaryCursor(this).apply { next() }
-public fun ByteArray.initParse(): BinaryCursor = ByteArrayBinaryCursor(this).apply { next() }
+public fun InputStream.initParse(): ByteCursor = InputStreamCursor(this).apply { next() }
+public fun ByteArray.initParse(): ByteCursor = ByteArrayCursor(this).apply { next() }
 
-public inline fun <T> BinaryCursor.parse(
+public inline fun <T> ByteCursor.parse(
     consumeAll: Boolean = true,
-    parse: BinaryCursor.() -> T,
+    parse: ByteCursor.() -> T,
 ): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
@@ -37,41 +37,41 @@ public inline fun <T> BinaryCursor.parse(
 public inline fun <T> InputStream.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
-    parse: BinaryCursor.() -> T,
+    parse: ByteCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
-    parse: BinaryCursor.() -> T,
+    parse: ByteCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse) }
 
-public inline fun <T> BinaryCursor.parseMultiple(
-    parse: BinaryCursor.() -> T,
+public inline fun <T> ByteCursor.parseMultiple(
+    parse: ByteCursor.() -> T,
 ): List<T> = buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T> InputStream.parseMultiple(
     closeWhenDone: Boolean = true,
-    parse: BinaryCursor.() -> T,
+    parse: ByteCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parseMultiple(
-    parse: BinaryCursor.() -> T,
+    parse: ByteCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse) }
 
-public fun BinaryCursor.crash(message: String, cause: Throwable? = null): Nothing =
+public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
     throw BinaryParseException(offset, current, message, cause)
 
-public inline fun BinaryCursor.ensure(condition: Boolean, message: () -> String) {
+public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun BinaryCursor.readIf(predicate: (Byte) -> Boolean): Boolean =
+public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
-public inline fun BinaryCursor.readWhile(predicate: (Byte) -> Boolean): Int {
+public inline fun ByteCursor.readWhile(predicate: (Byte) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
         next()
@@ -80,15 +80,15 @@ public inline fun BinaryCursor.readWhile(predicate: (Byte) -> Boolean): Int {
     return count
 }
 
-public fun BinaryCursor.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
+public fun ByteCursor.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
-public fun BinaryCursor.readRequiredByte(byte: Byte): Unit = ensure(readOptionalByte(byte)) { "Expected: $byte" }
+public fun ByteCursor.readRequiredByte(byte: Byte): Unit = ensure(readOptionalByte(byte)) { "Expected: $byte" }
 
-public fun BinaryCursor.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::readRequiredByte)
+public fun ByteCursor.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::readRequiredByte)
 
 // Capturing
 
-public class CapturingBinaryCursor<out S : BinaryCursor>(public val base: S) : BinaryCursor by base {
+public class CapturingByteCursor<out S : ByteCursor>(public val base: S) : ByteCursor by base {
     private var data = ByteArray(8)
     private var count: Int = 0
 
@@ -107,21 +107,21 @@ public class CapturingBinaryCursor<out S : BinaryCursor>(public val base: S) : B
     public fun getCaptured(): ByteArray = data.copyOf(count)
 }
 
-public fun <S : BinaryCursor> CapturingBinaryCursor<S>.capture(literal: ByteArray): Unit = literal.forEach(::capture)
+public fun <S : ByteCursor> CapturingByteCursor<S>.capture(literal: ByteArray): Unit = literal.forEach(::capture)
 
-public inline fun <S : BinaryCursor> S.capturing(action: CapturingBinaryCursor<S>.() -> Unit): ByteArray =
-    CapturingBinaryCursor(this).apply(action).getCaptured()
+public inline fun <S : ByteCursor> S.capturing(action: CapturingByteCursor<S>.() -> Unit): ByteArray =
+    CapturingByteCursor(this).apply(action).getCaptured()
 
-public inline fun <S : BinaryCursor> CapturingBinaryCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
+public inline fun <S : ByteCursor> CapturingByteCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
 
-public inline fun BinaryCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
+public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
     capturing { readWhile(predicate) }
 
-public fun BinaryCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
+public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
 
 // Implementation
 
-private abstract class BinaryCursorBase : BinaryCursor {
+private abstract class ByteCursorBase : ByteCursor {
     final override var offset = -1
         private set
 
@@ -131,7 +131,7 @@ private abstract class BinaryCursorBase : BinaryCursor {
     }
 }
 
-private class InputStreamBinaryCursor(private val stream: InputStream) : BinaryCursorBase() {
+private class InputStreamCursor(private val stream: InputStream) : ByteCursorBase() {
     override var current: Byte = 0
     override var isEndOfInput = false
 
@@ -147,7 +147,7 @@ private class InputStreamBinaryCursor(private val stream: InputStream) : BinaryC
     }
 }
 
-private class ByteArrayBinaryCursor(private val bytes: ByteArray) : BinaryCursorBase() {
+private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
     override val current get() = if (offset in bytes.indices) bytes[offset] else 0
     override val isEndOfInput get() = offset >= bytes.size
 
