@@ -9,10 +9,11 @@ public interface TextParseState {
     public val current: Char
     public val isEndOfInput: Boolean
     public fun next()
-    public fun startCapture()
-    public fun pauseCapture()
-    public fun addToCapture(char: Char)
-    public fun finishCapture(): String
+    public fun startCapturing()
+    public fun stopCapturing()
+    public fun capture(char: Char)
+    public fun getCaptured(): String
+    public fun purgeCaptured()
 }
 
 public class TextParseException(
@@ -81,19 +82,26 @@ public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
     return count
 }
 
-public inline fun TextParseState.capture(action: TextParseState.() -> Unit): String {
-    startCapture()
+public fun TextParseState.finishCapturing(): String {
+    stopCapturing()
+    val result = getCaptured()
+    purgeCaptured()
+    return result
+}
+
+public inline fun TextParseState.capturing(action: TextParseState.() -> Unit): String {
+    startCapturing()
     action()
-    return finishCapture()
+    return finishCapturing()
 }
 
 public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): String =
-    capture { readWhile(predicate) }
+    capturing { readWhile(predicate) }
 
-public fun TextParseState.capture(count: Int): String =
-    capture { repeat(count) { next() } }
+public fun TextParseState.captureCount(count: Int): String =
+    capturing { repeat(count) { next() } }
 
-public fun TextParseState.addToCapture(literal: String): Unit = literal.forEach(::addToCapture)
+public fun TextParseState.capture(literal: String): Unit = literal.forEach(::capture)
 
 public fun TextParseState.skipWhitespace(): Int = readWhile(Char::isWhitespace)
 
@@ -118,7 +126,7 @@ private abstract class TextParseStateBase : TextParseState {
 
     protected fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(current)
+        if (isCapturing) capture(current)
         // Check for newline
         if (current == '\n') {
             line++
@@ -127,26 +135,25 @@ private abstract class TextParseStateBase : TextParseState {
         offset++
     }
 
-    private val capture = StringBuilder()
+    private val currentCapture = StringBuilder()
     private var isCapturing = false
 
-    final override fun startCapture() {
+    final override fun startCapturing() {
         isCapturing = true
     }
 
-    final override fun pauseCapture() {
+    final override fun stopCapturing() {
         isCapturing = false
     }
 
-    final override fun addToCapture(char: Char) {
-        capture.append(char)
+    final override fun capture(char: Char) {
+        currentCapture.append(char)
     }
 
-    final override fun finishCapture(): String {
-        isCapturing = false
-        val text = capture.toString()
-        capture.setLength(0)
-        return text
+    override fun getCaptured() = currentCapture.toString()
+
+    override fun purgeCaptured() {
+        currentCapture.setLength(0)
     }
 }
 

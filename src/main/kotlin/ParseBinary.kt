@@ -7,10 +7,11 @@ public interface BinaryParseState {
     public val current: Byte
     public val isEndOfInput: Boolean
     public fun next()
-    public fun startCapture()
-    public fun pauseCapture()
-    public fun addToCapture(byte: Byte)
-    public fun finishCapture(): ByteArray
+    public fun startCapturing()
+    public fun stopCapturing()
+    public fun capture(byte: Byte)
+    public fun getCaptured(): ByteArray
+    public fun purgeCaptured()
 }
 
 public class BinaryParseException(
@@ -76,19 +77,26 @@ public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int 
     return count
 }
 
-public inline fun BinaryParseState.capture(action: BinaryParseState.() -> Unit): ByteArray {
-    startCapture()
+public fun BinaryParseState.finishCapturing(): ByteArray {
+    stopCapturing()
+    val result = getCaptured()
+    purgeCaptured()
+    return result
+}
+
+public inline fun BinaryParseState.capturing(action: BinaryParseState.() -> Unit): ByteArray {
+    startCapturing()
     action()
-    return finishCapture()
+    return finishCapturing()
 }
 
 public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
-    capture { readWhile(predicate) }
+    capturing { readWhile(predicate) }
 
-public fun BinaryParseState.capture(count: Int): ByteArray =
-    capture { repeat(count) { next() } }
+public fun BinaryParseState.captureCount(count: Int): ByteArray =
+    capturing { repeat(count) { next() } }
 
-public fun BinaryParseState.addToCapture(literal: ByteArray): Unit = literal.forEach(::addToCapture)
+public fun BinaryParseState.capture(literal: ByteArray): Unit = literal.forEach(::capture)
 
 public fun BinaryParseState.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
@@ -105,29 +113,28 @@ private abstract class BinaryParseStateBase : BinaryParseState {
 
     fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(current)
+        if (isCapturing) capture(current)
         offset++
     }
 
-    private val capture = ByteArrayBuilder()
+    private val currentCapture = ByteArrayBuilder()
     private var isCapturing = false
 
-    final override fun startCapture() {
+    final override fun startCapturing() {
         isCapturing = true
     }
 
-    final override fun pauseCapture() {
+    final override fun stopCapturing() {
         isCapturing = false
     }
 
-    final override fun addToCapture(byte: Byte) {
-        capture.append(byte)
+    final override fun capture(byte: Byte) {
+        currentCapture.append(byte)
     }
 
-    final override fun finishCapture(): ByteArray {
-        isCapturing = false
-        return capture.truncate()
-    }
+    override fun getCaptured() = currentCapture.toArray()
+
+    override fun purgeCaptured() = currentCapture.clear()
 }
 
 private class InputStreamBinaryParseState(private val stream: InputStream) : BinaryParseStateBase() {
@@ -157,8 +164,7 @@ private const val DEFAULT_BYTES_COUNT = 8
 
 private class ByteArrayBuilder {
     private var array = ByteArray(DEFAULT_BYTES_COUNT)
-    var count: Int = 0
-        private set
+    private var count: Int = 0
 
     fun append(byte: Byte) {
         if (array.size < count + 1) {
@@ -169,9 +175,7 @@ private class ByteArrayBuilder {
 
     fun toArray(): ByteArray = array.copyOf(count)
 
-    fun truncate(): ByteArray {
-        val result = toArray()
+    fun clear() {
         count = 0
-        return result
     }
 }

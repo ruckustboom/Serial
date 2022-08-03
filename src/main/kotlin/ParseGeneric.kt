@@ -7,10 +7,11 @@ public interface ParseState<T> {
     public val current: T
     public val isEndOfInput: Boolean
     public fun next()
-    public fun startCapture()
-    public fun pauseCapture()
-    public fun addToCapture(value: T)
-    public fun finishCapture(): List<T>
+    public fun startCapturing()
+    public fun stopCapturing()
+    public fun capture(value: T)
+    public fun getCaptured(): List<T>
+    public fun purgeCaptured()
 }
 
 public class ParseException(
@@ -81,19 +82,26 @@ public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
     return count
 }
 
-public inline fun <T> ParseState<T>.capture(action: ParseState<T>.() -> Unit): List<T> {
-    startCapture()
+public fun <T> ParseState<T>.finishCapturing(): List<T> {
+    stopCapturing()
+    val result = getCaptured()
+    purgeCaptured()
+    return result
+}
+
+public inline fun <T> ParseState<T>.capturing(action: ParseState<T>.() -> Unit): List<T> {
+    startCapturing()
     action()
-    return finishCapture()
+    return finishCapturing()
 }
 
 public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
-    capture { readWhile(predicate) }
+    capturing { readWhile(predicate) }
 
-public fun <T> ParseState<T>.capture(count: Int): List<T> =
-    capture { repeat(count) { next() } }
+public fun <T> ParseState<T>.captureCount(count: Int): List<T> =
+    capturing { repeat(count) { next() } }
 
-public fun <T> ParseState<T>.addToCapture(literal: List<T>): Unit = literal.forEach(::addToCapture)
+public fun <T> ParseState<T>.capture(literal: List<T>): Unit = literal.forEach(::capture)
 
 public fun <T> ParseState<T>.readOptionalValue(value: T): Boolean = readIf { it == value }
 
@@ -111,31 +119,28 @@ private abstract class ParseStateBase<T> : ParseState<T> {
 
     fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) addToCapture(current)
+        if (isCapturing) capture(current)
         offset++
     }
 
-    private val capture = mutableListOf<T>()
+    private val currentCapture = mutableListOf<T>()
     private var isCapturing = false
 
-    final override fun startCapture() {
+    final override fun startCapturing() {
         isCapturing = true
     }
 
-    final override fun pauseCapture() {
+    final override fun stopCapturing() {
         isCapturing = false
     }
 
-    final override fun addToCapture(value: T) {
-        capture += value
+    final override fun capture(value: T) {
+        currentCapture += value
     }
 
-    final override fun finishCapture(): List<T> {
-        isCapturing = false
-        val copy = capture.toList()
-        capture.clear()
-        return copy
-    }
+    override fun getCaptured() = currentCapture.toList()
+
+    override fun purgeCaptured() = currentCapture.clear()
 }
 
 private class IteratorParseState<T>(private val iter: Iterator<T>) : ParseStateBase<T>() {
