@@ -2,7 +2,11 @@ package serial
 
 import java.io.Reader
 
-public interface TextParseState {
+@DslMarker
+public annotation class TextCursorMarker
+
+@TextCursorMarker
+public interface TextCursor {
     public val offset: Int
     public val line: Int
     public val lineStart: Int
@@ -22,10 +26,10 @@ public class TextParseException(
 
 // Some common helpers
 
-public fun Reader.initParse(): TextParseState = ReaderTextParseState(this).apply { next() }
-public fun String.initParse(): TextParseState = StringTextParseState(this).apply { next() }
+public fun Reader.initParse(): TextCursor = ReaderTextCursor(this).apply { next() }
+public fun String.initParse(): TextCursor = StringTextCursor(this).apply { next() }
 
-public inline fun <T> TextParseState.parse(consumeAll: Boolean = true, parse: TextParseState.() -> T): T {
+public inline fun <T> TextCursor.parse(consumeAll: Boolean = true, parse: TextCursor.() -> T): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
@@ -34,41 +38,41 @@ public inline fun <T> TextParseState.parse(consumeAll: Boolean = true, parse: Te
 public inline fun <T> Reader.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
-    parse: TextParseState.() -> T,
+    parse: TextCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> String.parse(
     consumeAll: Boolean = true,
-    parse: TextParseState.() -> T,
+    parse: TextCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse) }
 
-public inline fun <T> TextParseState.parseMultiple(
-    parse: TextParseState.() -> T,
+public inline fun <T> TextCursor.parseMultiple(
+    parse: TextCursor.() -> T,
 ): List<T> = buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T> Reader.parseMultiple(
     closeWhenDone: Boolean = true,
-    parse: TextParseState.() -> T,
+    parse: TextCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> String.parseMultiple(
-    parse: TextParseState.() -> T,
+    parse: TextCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse) }
 
-public fun TextParseState.crash(message: String, cause: Throwable? = null): Nothing =
+public fun TextCursor.crash(message: String, cause: Throwable? = null): Nothing =
     throw TextParseException(offset, line, offset - lineStart + 1, current, message, cause)
 
-public inline fun TextParseState.ensure(condition: Boolean, message: () -> String) {
+public inline fun TextCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun TextParseState.readIf(predicate: (Char) -> Boolean): Boolean =
+public inline fun TextCursor.readIf(predicate: (Char) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
-public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
+public inline fun TextCursor.readWhile(predicate: (Char) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
         next()
@@ -77,22 +81,20 @@ public inline fun TextParseState.readWhile(predicate: (Char) -> Boolean): Int {
     return count
 }
 
-public fun TextParseState.skipWhitespace(): Int = readWhile(Char::isWhitespace)
+public fun TextCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
 
-public fun TextParseState.readOptionalChar(char: Char, ignoreCase: Boolean = false): Boolean =
+public fun TextCursor.readOptionalChar(char: Char, ignoreCase: Boolean = false): Boolean =
     readIf { it.equals(char, ignoreCase) }
 
-public fun TextParseState.readRequiredChar(char: Char, ignoreCase: Boolean = false): Unit =
+public fun TextCursor.readRequiredChar(char: Char, ignoreCase: Boolean = false): Unit =
     ensure(readOptionalChar(char, ignoreCase)) { "Expected: $char" }
 
-public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
+public fun TextCursor.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
     literal.forEach { readRequiredChar(it, ignoreCase) }
 
 // Capturing
 
-public class TextCapturingParseState<out S : TextParseState>(
-    public val base: S,
-) : TextParseState by base {
+public class CapturingTextCursor<out S : TextCursor>(public val base: S) : TextCursor by base {
     private val data = StringBuilder()
 
     override fun next() {
@@ -107,26 +109,20 @@ public class TextCapturingParseState<out S : TextParseState>(
     public fun getCaptured(): String = data.toString()
 }
 
-public fun <S : TextParseState> TextCapturingParseState<S>.capture(literal: String): Unit =
-    literal.forEach(::capture)
+public fun <S : TextCursor> CapturingTextCursor<S>.capture(literal: String): Unit = literal.forEach(::capture)
 
-public inline fun <S : TextParseState> S.capturing(
-    action: TextCapturingParseState<S>.() -> Unit,
-): String = TextCapturingParseState(this).apply(action).getCaptured()
+public inline fun <S : TextCursor> S.capturing(action: CapturingTextCursor<S>.() -> Unit): String =
+    CapturingTextCursor(this).apply(action).getCaptured()
 
-public inline fun <S : TextParseState> TextCapturingParseState<S>.notCapturing(
-    action: S.(TextCapturingParseState<S>) -> Unit,
-): Unit = base.action(this)
+public inline fun <S : TextCursor> CapturingTextCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
 
-public inline fun TextParseState.captureWhile(predicate: (Char) -> Boolean): String =
-    capturing { readWhile(predicate) }
+public inline fun TextCursor.captureWhile(predicate: (Char) -> Boolean): String = capturing { readWhile(predicate) }
 
-public fun TextParseState.captureCount(count: Int): String =
-    capturing { repeat(count) { next() } }
+public fun TextCursor.captureCount(count: Int): String = capturing { repeat(count) { next() } }
 
 // Implementation
 
-private abstract class TextParseStateBase : TextParseState {
+private abstract class TextCursorBase : TextCursor {
     final override var offset = -1
         private set
     final override var line = 1
@@ -145,14 +141,14 @@ private abstract class TextParseStateBase : TextParseState {
     }
 }
 
-private class StringTextParseState(private val string: String) : TextParseStateBase() {
+private class StringTextCursor(private val string: String) : TextCursorBase() {
     override val current get() = if (offset in string.indices) string[offset] else '\u0000'
     override val isEndOfInput get() = offset >= string.length
 
     override fun next() = advance()
 }
 
-private class ReaderTextParseState(private val reader: Reader) : TextParseStateBase() {
+private class ReaderTextCursor(private val reader: Reader) : TextCursorBase() {
     override var current = '\u0000'
     override var isEndOfInput = false
 

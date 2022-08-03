@@ -3,10 +3,10 @@ package serial
 import java.io.InputStream
 
 @DslMarker
-public annotation class BinaryParseContext
+public annotation class BinaryCursorMarker
 
-@BinaryParseContext
-public interface BinaryParseState {
+@BinaryCursorMarker
+public interface BinaryCursor {
     public val offset: Int
     public val current: Byte
     public val isEndOfInput: Boolean
@@ -22,10 +22,13 @@ public class BinaryParseException(
 
 // Some common helpers
 
-public fun InputStream.initParse(): BinaryParseState = InputStreamBinaryParseState(this).apply { next() }
-public fun ByteArray.initParse(): BinaryParseState = ByteArrayBinaryParseState(this).apply { next() }
+public fun InputStream.initParse(): BinaryCursor = InputStreamBinaryCursor(this).apply { next() }
+public fun ByteArray.initParse(): BinaryCursor = ByteArrayBinaryCursor(this).apply { next() }
 
-public inline fun <T> BinaryParseState.parse(consumeAll: Boolean = true, parse: BinaryParseState.() -> T): T {
+public inline fun <T> BinaryCursor.parse(
+    consumeAll: Boolean = true,
+    parse: BinaryCursor.() -> T,
+): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
@@ -34,40 +37,41 @@ public inline fun <T> BinaryParseState.parse(consumeAll: Boolean = true, parse: 
 public inline fun <T> InputStream.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
-    parse: BinaryParseState.() -> T,
+    parse: BinaryCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
-    parse: BinaryParseState.() -> T,
+    parse: BinaryCursor.() -> T,
 ): T = with(initParse()) { parse(consumeAll, parse) }
 
-public inline fun <T> BinaryParseState.parseMultiple(parse: BinaryParseState.() -> T): List<T> =
-    buildList { while (!isEndOfInput) add(parse()) }
+public inline fun <T> BinaryCursor.parseMultiple(
+    parse: BinaryCursor.() -> T,
+): List<T> = buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T> InputStream.parseMultiple(
     closeWhenDone: Boolean = true,
-    parse: BinaryParseState.() -> T,
+    parse: BinaryCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
 
 public inline fun <T> ByteArray.parseMultiple(
-    parse: BinaryParseState.() -> T,
+    parse: BinaryCursor.() -> T,
 ): List<T> = with(initParse()) { parseMultiple(parse) }
 
-public fun BinaryParseState.crash(message: String, cause: Throwable? = null): Nothing =
+public fun BinaryCursor.crash(message: String, cause: Throwable? = null): Nothing =
     throw BinaryParseException(offset, current, message, cause)
 
-public inline fun BinaryParseState.ensure(condition: Boolean, message: () -> String) {
+public inline fun BinaryCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun BinaryParseState.readIf(predicate: (Byte) -> Boolean): Boolean =
+public inline fun BinaryCursor.readIf(predicate: (Byte) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
-public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int {
+public inline fun BinaryCursor.readWhile(predicate: (Byte) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
         next()
@@ -76,21 +80,16 @@ public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int 
     return count
 }
 
-public fun BinaryParseState.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
+public fun BinaryCursor.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
-public fun BinaryParseState.readRequiredByte(byte: Byte): Unit =
-    ensure(readOptionalByte(byte)) { "Expected: $byte" }
+public fun BinaryCursor.readRequiredByte(byte: Byte): Unit = ensure(readOptionalByte(byte)) { "Expected: $byte" }
 
-public fun BinaryParseState.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::readRequiredByte)
+public fun BinaryCursor.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::readRequiredByte)
 
 // Capturing
 
-private const val DEFAULT_BYTES_COUNT = 8
-
-public class BinaryCapturingParseState<out S : BinaryParseState>(
-    public val base: S,
-) : BinaryParseState by base {
-    private var data = ByteArray(DEFAULT_BYTES_COUNT)
+public class CapturingBinaryCursor<out S : BinaryCursor>(public val base: S) : BinaryCursor by base {
+    private var data = ByteArray(8)
     private var count: Int = 0
 
     override fun next() {
@@ -108,26 +107,21 @@ public class BinaryCapturingParseState<out S : BinaryParseState>(
     public fun getCaptured(): ByteArray = data.copyOf(count)
 }
 
-public fun <S : BinaryParseState> BinaryCapturingParseState<S>.capture(literal: ByteArray): Unit =
-    literal.forEach(::capture)
+public fun <S : BinaryCursor> CapturingBinaryCursor<S>.capture(literal: ByteArray): Unit = literal.forEach(::capture)
 
-public inline fun <S : BinaryParseState> S.capturing(
-    action: BinaryCapturingParseState<S>.() -> Unit,
-): ByteArray = BinaryCapturingParseState(this).apply(action).getCaptured()
+public inline fun <S : BinaryCursor> S.capturing(action: CapturingBinaryCursor<S>.() -> Unit): ByteArray =
+    CapturingBinaryCursor(this).apply(action).getCaptured()
 
-public inline fun <S : BinaryParseState> BinaryCapturingParseState<S>.notCapturing(
-    action: S.(BinaryCapturingParseState<S>) -> Unit,
-): Unit = base.action(this)
+public inline fun <S : BinaryCursor> CapturingBinaryCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
 
-public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
+public inline fun BinaryCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
     capturing { readWhile(predicate) }
 
-public fun BinaryParseState.captureCount(count: Int): ByteArray =
-    capturing { repeat(count) { next() } }
+public fun BinaryCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
 
 // Implementation
 
-private abstract class BinaryParseStateBase : BinaryParseState {
+private abstract class BinaryCursorBase : BinaryCursor {
     final override var offset = -1
         private set
 
@@ -137,7 +131,7 @@ private abstract class BinaryParseStateBase : BinaryParseState {
     }
 }
 
-private class InputStreamBinaryParseState(private val stream: InputStream) : BinaryParseStateBase() {
+private class InputStreamBinaryCursor(private val stream: InputStream) : BinaryCursorBase() {
     override var current: Byte = 0
     override var isEndOfInput = false
 
@@ -153,7 +147,7 @@ private class InputStreamBinaryParseState(private val stream: InputStream) : Bin
     }
 }
 
-private class ByteArrayBinaryParseState(private val bytes: ByteArray) : BinaryParseStateBase() {
+private class ByteArrayBinaryCursor(private val bytes: ByteArray) : BinaryCursorBase() {
     override val current get() = if (offset in bytes.indices) bytes[offset] else 0
     override val isEndOfInput get() = offset >= bytes.size
 

@@ -5,32 +5,32 @@ import java.io.Reader
 
 // Generic
 
-public fun <T, R> ParseState<T>.tokenize(
-    parseToken: ParseState<T>.() -> R,
-): ParseState<R> = object : Iterator<R> {
+public fun <T, R> Cursor<T>.tokenize(
+    parseToken: Cursor<T>.() -> R,
+): Cursor<R> = object : Iterator<R> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
 }.initParse()
 
-public fun <T> TextParseState.tokenize(
-    parseToken: TextParseState.() -> T,
-): ParseState<T> = object : Iterator<T> {
+public fun <T> TextCursor.tokenize(
+    parseToken: TextCursor.() -> T,
+): Cursor<T> = object : Iterator<T> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
 }.initParse()
 
-public fun <T> BinaryParseState.tokenize(
-    parseToken: BinaryParseState.() -> T,
-): ParseState<T> = object : Iterator<T> {
+public fun <T> BinaryCursor.tokenize(
+    parseToken: BinaryCursor.() -> T,
+): Cursor<T> = object : Iterator<T> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
 }.initParse()
 
 // Text
 
-public fun <T> ParseState<T>.textTokenize(
-    parseToken: ParseState<T>.() -> Char,
-): TextParseState = object : Reader() {
+public fun <T> Cursor<T>.textTokenize(
+    parseToken: Cursor<T>.() -> Char,
+): TextCursor = object : Reader() {
     override fun read(cbuf: CharArray, off: Int, len: Int): Int {
         var i = 0
         while (i < len) {
@@ -47,9 +47,9 @@ public fun <T> ParseState<T>.textTokenize(
     override fun close() {}
 }.initParse()
 
-public fun TextParseState.textTokenize(
-    parseToken: TextParseState.() -> Char,
-): TextParseState = object : Reader() {
+public fun TextCursor.textTokenize(
+    parseToken: TextCursor.() -> Char,
+): TextCursor = object : Reader() {
     override fun read(cbuf: CharArray, off: Int, len: Int): Int {
         var i = 0
         while (i < len) {
@@ -66,9 +66,9 @@ public fun TextParseState.textTokenize(
     override fun close() {}
 }.initParse()
 
-public fun BinaryParseState.textTokenize(
-    parseToken: BinaryParseState.() -> Char,
-): TextParseState = object : Reader() {
+public fun BinaryCursor.textTokenize(
+    parseToken: BinaryCursor.() -> Char,
+): TextCursor = object : Reader() {
     override fun read(cbuf: CharArray, off: Int, len: Int): Int {
         var i = 0
         while (i < len) {
@@ -87,9 +87,9 @@ public fun BinaryParseState.textTokenize(
 
 // Binary
 
-public fun <T> ParseState<T>.binaryTokenize(
-    parseToken: ParseState<T>.() -> Byte,
-): BinaryParseState = object : InputStream() {
+public fun <T> Cursor<T>.binaryTokenize(
+    parseToken: Cursor<T>.() -> Byte,
+): BinaryCursor = object : InputStream() {
     override fun read() = try {
         parseToken().toInt() and 0xFF
     } catch (e: Throwable) {
@@ -97,9 +97,9 @@ public fun <T> ParseState<T>.binaryTokenize(
     }
 }.initParse()
 
-public fun TextParseState.binaryTokenize(
-    parseToken: TextParseState.() -> Byte,
-): BinaryParseState = object : InputStream() {
+public fun TextCursor.binaryTokenize(
+    parseToken: TextCursor.() -> Byte,
+): BinaryCursor = object : InputStream() {
     override fun read() = try {
         parseToken().toInt() and 0xFF
     } catch (e: Throwable) {
@@ -107,9 +107,9 @@ public fun TextParseState.binaryTokenize(
     }
 }.initParse()
 
-public fun BinaryParseState.binaryTokenize(
-    parseToken: BinaryParseState.() -> Byte,
-): BinaryParseState = object : InputStream() {
+public fun BinaryCursor.binaryTokenize(
+    parseToken: BinaryCursor.() -> Byte,
+): BinaryCursor = object : InputStream() {
     override fun read() = try {
         parseToken().toInt() and 0xFF
     } catch (e: Throwable) {

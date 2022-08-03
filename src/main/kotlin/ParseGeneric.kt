@@ -2,7 +2,11 @@ package serial
 
 import java.util.stream.Stream
 
-public interface ParseState<T> {
+@DslMarker
+public annotation class CursorMarker
+
+@CursorMarker
+public interface Cursor<T> {
     public val offset: Int
     public val current: T
     public val isEndOfInput: Boolean
@@ -18,11 +22,11 @@ public class ParseException(
 
 // Some common helpers
 
-public fun <T> Iterator<T>.initParse(): ParseState<T> = IteratorParseState(this).apply { next() }
+public fun <T> Iterator<T>.initParse(): Cursor<T> = IteratorCursor(this).apply { next() }
 
 public inline fun <T, R> Iterator<T>.parse(
     consumeAll: Boolean = true,
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): R = with(initParse()) {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
@@ -31,16 +35,16 @@ public inline fun <T, R> Iterator<T>.parse(
 
 public inline fun <T, R> Iterable<T>.parse(
     consumeAll: Boolean = true,
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): R = iterator().parse(consumeAll, parse)
 
 public inline fun <T, R> Stream<T>.parse(
     consumeAll: Boolean = true,
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): R = iterator().parse(consumeAll, parse)
 
 public inline fun <T, R> Iterator<T>.parseMultiple(
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): List<R> = with(initParse()) {
     val results = mutableListOf<R>()
     while (!isEndOfInput) results += parse()
@@ -48,27 +52,27 @@ public inline fun <T, R> Iterator<T>.parseMultiple(
 }
 
 public inline fun <T, R> Iterable<T>.parseMultiple(
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): List<R> = iterator().parseMultiple(parse)
 
 public inline fun <T, R> Stream<T>.parseMultiple(
-    parse: ParseState<T>.() -> R,
+    parse: Cursor<T>.() -> R,
 ): List<R> = iterator().parseMultiple(parse)
 
-public fun <T> ParseState<T>.crash(message: String, cause: Throwable? = null): Nothing =
+public fun <T> Cursor<T>.crash(message: String, cause: Throwable? = null): Nothing =
     throw ParseException(offset, current, message, cause)
 
-public inline fun <T> ParseState<T>.ensure(condition: Boolean, message: () -> String) {
+public inline fun <T> Cursor<T>.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun <T> ParseState<T>.readIf(predicate: (T) -> Boolean): Boolean =
+public inline fun <T> Cursor<T>.readIf(predicate: (T) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         next()
         true
     } else false
 
-public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
+public inline fun <T> Cursor<T>.readWhile(predicate: (T) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
         next()
@@ -77,19 +81,15 @@ public inline fun <T> ParseState<T>.readWhile(predicate: (T) -> Boolean): Int {
     return count
 }
 
-public fun <T> ParseState<T>.readOptionalValue(value: T): Boolean = readIf { it == value }
+public fun <T> Cursor<T>.readOptionalValue(value: T): Boolean = readIf { it == value }
 
-public fun <T> ParseState<T>.readRequiredValue(value: T): Unit =
-    ensure(readOptionalValue(value)) { "Expected: $value" }
+public fun <T> Cursor<T>.readRequiredValue(value: T): Unit = ensure(readOptionalValue(value)) { "Expected: $value" }
 
-public fun <T> ParseState<T>.readLiteral(literal: List<T>): Unit =
-    literal.forEach(::readRequiredValue)
+public fun <T> Cursor<T>.readLiteral(literal: List<T>): Unit = literal.forEach(::readRequiredValue)
 
 // Capturing
 
-public class CapturingParseState<T, out S : ParseState<T>>(
-    public val base: S,
-) : ParseState<T> by base {
+public class CapturingCursor<T, out S : Cursor<T>>(public val base: S) : Cursor<T> by base {
     private val data = mutableListOf<T>()
 
     override fun next() {
@@ -104,26 +104,20 @@ public class CapturingParseState<T, out S : ParseState<T>>(
     public fun getCaptured(): List<T> = data.toList()
 }
 
-public fun <T, S : ParseState<T>> CapturingParseState<T, S>.capture(literal: List<T>): Unit =
-    literal.forEach(::capture)
+public fun <T, S : Cursor<T>> CapturingCursor<T, S>.capture(literal: List<T>): Unit = literal.forEach(::capture)
 
-public inline fun <T, S : ParseState<T>> S.capturing(
-    action: CapturingParseState<T, S>.() -> Unit,
-): List<T> = CapturingParseState(this).apply(action).getCaptured()
+public inline fun <T, S : Cursor<T>> S.capturing(action: CapturingCursor<T, S>.() -> Unit): List<T> =
+    CapturingCursor(this).apply(action).getCaptured()
 
-public inline fun <T, S : ParseState<T>> CapturingParseState<T, S>.notCapturing(
-    action: S.(CapturingParseState<T, S>) -> Unit,
-): Unit = base.action(this)
+public inline fun <T, S : Cursor<T>> CapturingCursor<T, S>.notCapturing(action: S.() -> Unit): Unit = base.action()
 
-public inline fun <T> ParseState<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
-    capturing { readWhile(predicate) }
+public inline fun <T> Cursor<T>.captureWhile(predicate: (T) -> Boolean): List<T> = capturing { readWhile(predicate) }
 
-public fun <T> ParseState<T>.captureCount(count: Int): List<T> =
-    capturing { repeat(count) { next() } }
+public fun <T> Cursor<T>.captureCount(count: Int): List<T> = capturing { repeat(count) { next() } }
 
 // Implementation
 
-private abstract class ParseStateBase<T> : ParseState<T> {
+private abstract class CursorBase<T> : Cursor<T> {
     final override var offset = -1
         private set
 
@@ -133,7 +127,7 @@ private abstract class ParseStateBase<T> : ParseState<T> {
     }
 }
 
-private class IteratorParseState<T>(private val iter: Iterator<T>) : ParseStateBase<T>() {
+private class IteratorCursor<T>(private val iter: Iterator<T>) : CursorBase<T>() {
     override var isEndOfInput = false
 
     @Suppress("UNCHECKED_CAST")
