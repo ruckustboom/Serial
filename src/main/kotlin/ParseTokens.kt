@@ -10,21 +10,21 @@ public fun <T, R> ObjectCursor<T>.tokenize(
 ): ObjectCursor<R> = object : Iterator<R> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
-}.initParse()
+}.toCursor()
 
 public fun <T> CharCursor.tokenize(
     parseToken: CharCursor.() -> T,
 ): ObjectCursor<T> = object : Iterator<T> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
-}.initParse()
+}.toCursor()
 
 public fun <T> ByteCursor.tokenize(
     parseToken: ByteCursor.() -> T,
 ): ObjectCursor<T> = object : Iterator<T> {
     override fun hasNext() = !isEndOfInput
     override fun next() = parseToken()
-}.initParse()
+}.toCursor()
 
 // Text
 
@@ -45,7 +45,7 @@ public fun <T> ObjectCursor<T>.textTokenize(
     }
 
     override fun close() {}
-}.initParse()
+}.toCursor()
 
 public fun CharCursor.textTokenize(
     parseToken: CharCursor.() -> Char,
@@ -64,7 +64,7 @@ public fun CharCursor.textTokenize(
     }
 
     override fun close() {}
-}.initParse()
+}.toCursor()
 
 public fun ByteCursor.textTokenize(
     parseToken: ByteCursor.() -> Char,
@@ -83,7 +83,7 @@ public fun ByteCursor.textTokenize(
     }
 
     override fun close() {}
-}.initParse()
+}.toCursor()
 
 // Binary
 
@@ -95,7 +95,7 @@ public fun <T> ObjectCursor<T>.binaryTokenize(
     } catch (e: Throwable) {
         -1
     }
-}.initParse()
+}.toCursor()
 
 public fun CharCursor.binaryTokenize(
     parseToken: CharCursor.() -> Byte,
@@ -105,7 +105,7 @@ public fun CharCursor.binaryTokenize(
     } catch (e: Throwable) {
         -1
     }
-}.initParse()
+}.toCursor()
 
 public fun ByteCursor.binaryTokenize(
     parseToken: ByteCursor.() -> Byte,
@@ -115,4 +115,4 @@ public fun ByteCursor.binaryTokenize(
     } catch (e: Throwable) {
         -1
     }
-}.initParse()
+}.toCursor()

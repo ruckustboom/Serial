@@ -13,7 +13,7 @@ public interface ByteCursor {
     public fun next()
 }
 
-public class BinaryParseException(
+public class ByteCursorException(
     public val offset: Int,
     public val byte: Byte,
     public val description: String,
@@ -22,8 +22,8 @@ public class BinaryParseException(
 
 // Some common helpers
 
-public fun InputStream.initParse(): ByteCursor = InputStreamCursor(this).apply { next() }
-public fun ByteArray.initParse(): ByteCursor = ByteArrayCursor(this).apply { next() }
+public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { next() }
+public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { next() }
 
 public inline fun <T> ByteCursor.parse(
     consumeAll: Boolean = true,
@@ -38,12 +38,12 @@ public inline fun <T> InputStream.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: ByteCursor.() -> T,
-): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
+): T = toCursor().parse(consumeAll, parse).also { if (closeWhenDone) close() }
 
 public inline fun <T> ByteArray.parse(
     consumeAll: Boolean = true,
     parse: ByteCursor.() -> T,
-): T = with(initParse()) { parse(consumeAll, parse) }
+): T = toCursor().parse(consumeAll, parse)
 
 public inline fun <T> ByteCursor.parseMultiple(
     parse: ByteCursor.() -> T,
@@ -52,14 +52,14 @@ public inline fun <T> ByteCursor.parseMultiple(
 public inline fun <T> InputStream.parseMultiple(
     closeWhenDone: Boolean = true,
     parse: ByteCursor.() -> T,
-): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
+): List<T> = toCursor().parseMultiple(parse).also { if (closeWhenDone) close() }
 
 public inline fun <T> ByteArray.parseMultiple(
     parse: ByteCursor.() -> T,
-): List<T> = with(initParse()) { parseMultiple(parse) }
+): List<T> = toCursor().parseMultiple(parse)
 
 public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw BinaryParseException(offset, current, message, cause)
+    throw ByteCursorException(offset, current, message, cause)
 
 public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())

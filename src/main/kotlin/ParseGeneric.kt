@@ -13,7 +13,7 @@ public interface ObjectCursor<T> {
     public fun next()
 }
 
-public class ParseException(
+public class ObjectCursorException(
     public val offset: Int,
     public val value: Any?,
     public val description: String,
@@ -22,16 +22,21 @@ public class ParseException(
 
 // Some common helpers
 
-public fun <T> Iterator<T>.initParse(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
+public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
+
+public inline fun <T, R> ObjectCursor<T>.parse(
+    consumeAll: Boolean = true,
+    parse: ObjectCursor<T>.() -> R,
+): R {
+    val result = parse()
+    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
+    return result
+}
 
 public inline fun <T, R> Iterator<T>.parse(
     consumeAll: Boolean = true,
     parse: ObjectCursor<T>.() -> R,
-): R = with(initParse()) {
-    val result = parse()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
-    result
-}
+): R = toCursor().parse(consumeAll, parse)
 
 public inline fun <T, R> Iterable<T>.parse(
     consumeAll: Boolean = true,
@@ -40,27 +45,29 @@ public inline fun <T, R> Iterable<T>.parse(
 
 public inline fun <T, R> Stream<T>.parse(
     consumeAll: Boolean = true,
+    closeWhenDone: Boolean = true,
     parse: ObjectCursor<T>.() -> R,
-): R = iterator().parse(consumeAll, parse)
+): R = iterator().parse(consumeAll, parse).also { if (closeWhenDone) close() }
+
+public inline fun <T, R> ObjectCursor<T>.parseMultiple(
+    parse: ObjectCursor<T>.() -> R,
+): List<R> = buildList { while (!isEndOfInput) add(parse()) }
 
 public inline fun <T, R> Iterator<T>.parseMultiple(
     parse: ObjectCursor<T>.() -> R,
-): List<R> = with(initParse()) {
-    val results = mutableListOf<R>()
-    while (!isEndOfInput) results += parse()
-    results
-}
+): List<R> = toCursor().parseMultiple(parse)
 
 public inline fun <T, R> Iterable<T>.parseMultiple(
     parse: ObjectCursor<T>.() -> R,
 ): List<R> = iterator().parseMultiple(parse)
 
 public inline fun <T, R> Stream<T>.parseMultiple(
+    closeWhenDone: Boolean = true,
     parse: ObjectCursor<T>.() -> R,
-): List<R> = iterator().parseMultiple(parse)
+): List<R> = iterator().parseMultiple(parse).also { if (closeWhenDone) close() }
 
 public fun <T> ObjectCursor<T>.crash(message: String, cause: Throwable? = null): Nothing =
-    throw ParseException(offset, current, message, cause)
+    throw ObjectCursorException(offset, current, message, cause)
 
 public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())

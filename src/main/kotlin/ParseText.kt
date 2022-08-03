@@ -15,7 +15,7 @@ public interface CharCursor {
     public fun next()
 }
 
-public class TextParseException(
+public class CharCursorException(
     public val offset: Int,
     public val line: Int,
     public val column: Int,
@@ -26,10 +26,13 @@ public class TextParseException(
 
 // Some common helpers
 
-public fun Reader.initParse(): CharCursor = ReaderCursor(this).apply { next() }
-public fun String.initParse(): CharCursor = StringCursor(this).apply { next() }
+public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { next() }
+public fun String.toCursor(): CharCursor = StringCursor(this).apply { next() }
 
-public inline fun <T> CharCursor.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T {
+public inline fun <T> CharCursor.parse(
+    consumeAll: Boolean = true,
+    parse: CharCursor.() -> T,
+): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
@@ -39,12 +42,12 @@ public inline fun <T> Reader.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: CharCursor.() -> T,
-): T = with(initParse()) { parse(consumeAll, parse).also { if (closeWhenDone) close() } }
+): T = toCursor().parse(consumeAll, parse).also { if (closeWhenDone) close() }
 
 public inline fun <T> String.parse(
     consumeAll: Boolean = true,
     parse: CharCursor.() -> T,
-): T = with(initParse()) { parse(consumeAll, parse) }
+): T = toCursor().parse(consumeAll, parse)
 
 public inline fun <T> CharCursor.parseMultiple(
     parse: CharCursor.() -> T,
@@ -53,14 +56,14 @@ public inline fun <T> CharCursor.parseMultiple(
 public inline fun <T> Reader.parseMultiple(
     closeWhenDone: Boolean = true,
     parse: CharCursor.() -> T,
-): List<T> = with(initParse()) { parseMultiple(parse).also { if (closeWhenDone) close() } }
+): List<T> = toCursor().parseMultiple(parse).also { if (closeWhenDone) close() }
 
 public inline fun <T> String.parseMultiple(
     parse: CharCursor.() -> T,
-): List<T> = with(initParse()) { parseMultiple(parse) }
+): List<T> = toCursor().parseMultiple(parse)
 
 public fun CharCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw TextParseException(offset, line, offset - lineStart + 1, current, message, cause)
+    throw CharCursorException(offset, line, offset - lineStart + 1, current, message, cause)
 
 public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
