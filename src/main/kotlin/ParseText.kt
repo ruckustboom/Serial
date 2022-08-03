@@ -93,7 +93,7 @@ public fun TextParseState.readLiteral(literal: String, ignoreCase: Boolean = fal
 public class TextCapturingParseState<out S : TextParseState>(
     public val base: S,
 ) : TextParseState by base {
-    private val string = StringBuilder()
+    private val data = StringBuilder()
 
     override fun next() {
         capture(current)
@@ -101,10 +101,10 @@ public class TextCapturingParseState<out S : TextParseState>(
     }
 
     public fun capture(char: Char) {
-        string.append(char)
+        data.append(char)
     }
 
-    public fun getCaptured(): String = string.toString()
+    public fun getCaptured(): String = data.toString()
 }
 
 public fun <S : TextParseState> TextCapturingParseState<S>.capture(literal: String): Unit =

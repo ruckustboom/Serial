@@ -90,7 +90,7 @@ public fun <T> ParseState<T>.readLiteral(literal: List<T>): Unit =
 public class CapturingParseState<T, out S : ParseState<T>>(
     public val base: S,
 ) : ParseState<T> by base {
-    private val list = mutableListOf<T>()
+    private val data = mutableListOf<T>()
 
     override fun next() {
         capture(current)
@@ -98,10 +98,10 @@ public class CapturingParseState<T, out S : ParseState<T>>(
     }
 
     public fun capture(value: T) {
-        list += value
+        data += value
     }
 
-    public fun getCaptured(): List<T> = list.toList()
+    public fun getCaptured(): List<T> = data.toList()
 }
 
 public fun <T, S : ParseState<T>> CapturingParseState<T, S>.capture(literal: List<T>): Unit =

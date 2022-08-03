@@ -90,7 +90,7 @@ private const val DEFAULT_BYTES_COUNT = 8
 public class BinaryCapturingParseState<out S : BinaryParseState>(
     public val base: S,
 ) : BinaryParseState by base {
-    private var array = ByteArray(DEFAULT_BYTES_COUNT)
+    private var data = ByteArray(DEFAULT_BYTES_COUNT)
     private var count: Int = 0
 
     override fun next() {
@@ -99,13 +99,13 @@ public class BinaryCapturingParseState<out S : BinaryParseState>(
     }
 
     public fun capture(byte: Byte) {
-        if (array.size < count + 1) {
-            array = array.copyOf(array.size * 2)
+        if (data.size < count + 1) {
+            data = data.copyOf(data.size * 2)
         }
-        array[count++] = byte
+        data[count++] = byte
     }
 
-    public fun getCaptured(): ByteArray = array.copyOf(count)
+    public fun getCaptured(): ByteArray = data.copyOf(count)
 }
 
 public fun <S : BinaryParseState> BinaryCapturingParseState<S>.capture(literal: ByteArray): Unit =
