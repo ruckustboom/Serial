@@ -2,17 +2,15 @@ package serial
 
 import java.io.InputStream
 
+@DslMarker
+public annotation class BinaryParseContext
+
+@BinaryParseContext
 public interface BinaryParseState {
     public val offset: Int
     public val current: Byte
     public val isEndOfInput: Boolean
-    public val isCapturing: Boolean
     public fun next()
-    public fun startCapturing()
-    public fun stopCapturing()
-    public fun capture(byte: Byte)
-    public fun getCaptured(): ByteArray
-    public fun purgeCaptured()
 }
 
 public class BinaryParseException(
@@ -78,42 +76,54 @@ public inline fun BinaryParseState.readWhile(predicate: (Byte) -> Boolean): Int 
     return count
 }
 
-public fun BinaryParseState.finishCapturing(): ByteArray {
-    ensure(isCapturing) { "Not currently capturing" }
-    stopCapturing()
-    val result = getCaptured()
-    purgeCaptured()
-    return result
-}
-
-public inline fun BinaryParseState.capturing(action: BinaryParseState.() -> Unit): ByteArray {
-    ensure(!isCapturing) { "Already capturing" }
-    startCapturing()
-    action()
-    return finishCapturing()
-}
-
-public inline fun BinaryParseState.notCapturing(action: BinaryParseState.() -> Unit) {
-    ensure(isCapturing) { "Not currently capturing" }
-    stopCapturing()
-    action()
-    startCapturing()
-}
-
-public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
-    capturing { readWhile(predicate) }
-
-public fun BinaryParseState.captureCount(count: Int): ByteArray =
-    capturing { repeat(count) { next() } }
-
-public fun BinaryParseState.capture(literal: ByteArray): Unit = literal.forEach(::capture)
-
 public fun BinaryParseState.readOptionalByte(byte: Byte): Boolean = readIf { it == byte }
 
 public fun BinaryParseState.readRequiredByte(byte: Byte): Unit =
     ensure(readOptionalByte(byte)) { "Expected: $byte" }
 
 public fun BinaryParseState.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::readRequiredByte)
+
+// Capturing
+
+private const val DEFAULT_BYTES_COUNT = 8
+
+public class BinaryCapturingParseState<out S : BinaryParseState>(
+    public val base: S,
+) : BinaryParseState by base {
+    private var array = ByteArray(DEFAULT_BYTES_COUNT)
+    private var count: Int = 0
+
+    override fun next() {
+        capture(current)
+        base.next()
+    }
+
+    public fun capture(byte: Byte) {
+        if (array.size < count + 1) {
+            array = array.copyOf(array.size * 2)
+        }
+        array[count++] = byte
+    }
+
+    public fun getCaptured(): ByteArray = array.copyOf(count)
+}
+
+public fun <S : BinaryParseState> BinaryCapturingParseState<S>.capture(literal: ByteArray): Unit =
+    literal.forEach(::capture)
+
+public inline fun <S : BinaryParseState> S.capturing(
+    action: BinaryCapturingParseState<S>.() -> Unit,
+): ByteArray = BinaryCapturingParseState(this).apply(action).getCaptured()
+
+public inline fun <S : BinaryParseState> BinaryCapturingParseState<S>.notCapturing(
+    action: S.(BinaryCapturingParseState<S>) -> Unit,
+): Unit = base.action(this)
+
+public inline fun BinaryParseState.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
+    capturing { readWhile(predicate) }
+
+public fun BinaryParseState.captureCount(count: Int): ByteArray =
+    capturing { repeat(count) { next() } }
 
 // Implementation
 
@@ -123,28 +133,8 @@ private abstract class BinaryParseStateBase : BinaryParseState {
 
     fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
-        if (isCapturing) capture(current)
         offset++
     }
-
-    private val currentCapture = ByteArrayBuilder()
-    override var isCapturing = false
-
-    final override fun startCapturing() {
-        isCapturing = true
-    }
-
-    final override fun stopCapturing() {
-        isCapturing = false
-    }
-
-    final override fun capture(byte: Byte) {
-        currentCapture.append(byte)
-    }
-
-    override fun getCaptured() = currentCapture.toArray()
-
-    override fun purgeCaptured() = currentCapture.clear()
 }
 
 private class InputStreamBinaryParseState(private val stream: InputStream) : BinaryParseStateBase() {
@@ -168,24 +158,4 @@ private class ByteArrayBinaryParseState(private val bytes: ByteArray) : BinaryPa
     override val isEndOfInput get() = offset >= bytes.size
 
     override fun next() = advance()
-}
-
-private const val DEFAULT_BYTES_COUNT = 8
-
-private class ByteArrayBuilder {
-    private var array = ByteArray(DEFAULT_BYTES_COUNT)
-    private var count: Int = 0
-
-    fun append(byte: Byte) {
-        if (array.size < count + 1) {
-            array = array.copyOf(array.size * 2)
-        }
-        array[count++] = byte
-    }
-
-    fun toArray(): ByteArray = array.copyOf(count)
-
-    fun clear() {
-        count = 0
-    }
 }
