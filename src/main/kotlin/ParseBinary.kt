@@ -3,15 +3,8 @@ package serial
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
-@DslMarker
-public annotation class ByteCursorMarker
-
-@ByteCursorMarker
-public interface ByteCursor {
-    public val offset: Int
+public interface ByteCursor : DataCursor {
     public val current: Byte
-    public val isEndOfInput: Boolean
-    public fun next()
 }
 
 public class ByteCursorException(
@@ -26,10 +19,7 @@ public class ByteCursorException(
 public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { next() }
 public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { next() }
 
-public inline fun <T> ByteCursor.parse(
-    consumeAll: Boolean = true,
-    parse: ByteCursor.() -> T,
-): T {
+public inline fun <T> ByteCursor.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
@@ -39,25 +29,16 @@ public inline fun <T> InputStream.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: ByteCursor.() -> T,
-): T = toCursor().parse(consumeAll, parse).also { if (closeWhenDone) close() }
+): T = try {
+    toCursor().parse(consumeAll, parse)
+} finally {
+    if (closeWhenDone) close()
+}
 
-public inline fun <T> ByteArray.parse(
-    consumeAll: Boolean = true,
-    parse: ByteCursor.() -> T,
-): T = toCursor().parse(consumeAll, parse)
+public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T =
+    toCursor().parse(consumeAll, parse)
 
-public inline fun <T> ByteCursor.parseMultiple(
-    parse: ByteCursor.() -> T,
-): List<T> = buildList { while (!isEndOfInput) add(parse()) }
-
-public inline fun <T> InputStream.parseMultiple(
-    closeWhenDone: Boolean = true,
-    parse: ByteCursor.() -> T,
-): List<T> = toCursor().parseMultiple(parse).also { if (closeWhenDone) close() }
-
-public inline fun <T> ByteArray.parseMultiple(
-    parse: ByteCursor.() -> T,
-): List<T> = toCursor().parseMultiple(parse)
+public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor = ByteTokenizer(this, parseToken)
 
 public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
     throw ByteCursorException(offset, current, message, cause)
@@ -66,11 +47,10 @@ public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean =
-    if (!isEndOfInput && predicate(current)) {
-        next()
-        true
-    } else false
+public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
+    next()
+    true
+} else false
 
 public inline fun ByteCursor.readWhile(predicate: (Byte) -> Boolean): Int {
     var count = 0
@@ -111,8 +91,7 @@ public inline fun <S : ByteCursor> S.capturing(action: CapturingByteCursor<S>.()
 
 public inline fun <S : ByteCursor> CapturingByteCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
 
-public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray =
-    capturing { readWhile(predicate) }
+public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray = capturing { readWhile(predicate) }
 
 public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
 
@@ -149,4 +128,14 @@ private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
     override val isEndOfInput get() = offset >= bytes.size
 
     override fun next() = advance()
+}
+
+private class ByteTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Byte) : ByteCursorBase() {
+    override var current: Byte = 0
+    override val isEndOfInput get() = base.isEndOfInput
+
+    override fun next() {
+        advance()
+        current = base.parse()
+    }
 }

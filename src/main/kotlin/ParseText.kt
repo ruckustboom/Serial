@@ -2,17 +2,10 @@ package serial
 
 import java.io.Reader
 
-@DslMarker
-public annotation class CharCursorMarker
-
-@CharCursorMarker
-public interface CharCursor {
-    public val offset: Int
+public interface CharCursor : DataCursor {
     public val line: Int
     public val lineStart: Int
     public val current: Char
-    public val isEndOfInput: Boolean
-    public fun next()
 }
 
 public class CharCursorException(
@@ -29,10 +22,7 @@ public class CharCursorException(
 public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { next() }
 public fun String.toCursor(): CharCursor = StringCursor(this).apply { next() }
 
-public inline fun <T> CharCursor.parse(
-    consumeAll: Boolean = true,
-    parse: CharCursor.() -> T,
-): T {
+public inline fun <T> CharCursor.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
@@ -42,25 +32,16 @@ public inline fun <T> Reader.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: CharCursor.() -> T,
-): T = toCursor().parse(consumeAll, parse).also { if (closeWhenDone) close() }
+): T = try {
+    toCursor().parse(consumeAll, parse)
+} finally {
+    if (closeWhenDone) close()
+}
 
-public inline fun <T> String.parse(
-    consumeAll: Boolean = true,
-    parse: CharCursor.() -> T,
-): T = toCursor().parse(consumeAll, parse)
+public inline fun <T> String.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T =
+    toCursor().parse(consumeAll, parse)
 
-public inline fun <T> CharCursor.parseMultiple(
-    parse: CharCursor.() -> T,
-): List<T> = buildList { while (!isEndOfInput) add(parse()) }
-
-public inline fun <T> Reader.parseMultiple(
-    closeWhenDone: Boolean = true,
-    parse: CharCursor.() -> T,
-): List<T> = toCursor().parseMultiple(parse).also { if (closeWhenDone) close() }
-
-public inline fun <T> String.parseMultiple(
-    parse: CharCursor.() -> T,
-): List<T> = toCursor().parseMultiple(parse)
+public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor = CharTokenizer(this, parseToken)
 
 public fun CharCursor.crash(message: String, cause: Throwable? = null): Nothing =
     throw CharCursorException(offset, line, offset - lineStart + 1, current, message, cause)
@@ -69,11 +50,10 @@ public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
 }
 
-public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean =
-    if (!isEndOfInput && predicate(current)) {
-        next()
-        true
-    } else false
+public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
+    next()
+    true
+} else false
 
 public inline fun CharCursor.readWhile(predicate: (Char) -> Boolean): Int {
     var count = 0
@@ -164,5 +144,15 @@ private class ReaderCursor(private val reader: Reader) : CharCursorBase() {
             current = '\u0000'
             isEndOfInput = true
         }
+    }
+}
+
+private class CharTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Char) : CharCursorBase() {
+    override var current = '\u0000'
+    override val isEndOfInput get() = base.isEndOfInput
+
+    override fun next() {
+        advance()
+        current = base.parse()
     }
 }

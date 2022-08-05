@@ -3,14 +3,17 @@ package serial
 import java.util.stream.Stream
 
 @DslMarker
-public annotation class ObjectCursorMarker
+public annotation class CursorDSL
 
-@ObjectCursorMarker
-public interface ObjectCursor<T> {
+@CursorDSL
+public interface DataCursor {
     public val offset: Int
-    public val current: T
     public val isEndOfInput: Boolean
     public fun next()
+}
+
+public interface ObjectCursor<T> : DataCursor {
+    public val current: T
 }
 
 public class ObjectCursorException(
@@ -24,47 +27,29 @@ public class ObjectCursorException(
 
 public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
 
-public inline fun <T, R> ObjectCursor<T>.parse(
-    consumeAll: Boolean = true,
-    parse: ObjectCursor<T>.() -> R,
-): R {
+public inline fun <T, R> ObjectCursor<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R {
     val result = parse()
     if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
     return result
 }
 
-public inline fun <T, R> Iterator<T>.parse(
-    consumeAll: Boolean = true,
-    parse: ObjectCursor<T>.() -> R,
-): R = toCursor().parse(consumeAll, parse)
+public inline fun <T, R> Iterator<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R =
+    toCursor().parse(consumeAll, parse)
 
-public inline fun <T, R> Iterable<T>.parse(
-    consumeAll: Boolean = true,
-    parse: ObjectCursor<T>.() -> R,
-): R = iterator().parse(consumeAll, parse)
+public inline fun <T, R> Iterable<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R =
+    iterator().parse(consumeAll, parse)
 
 public inline fun <T, R> Stream<T>.parse(
     consumeAll: Boolean = true,
     closeWhenDone: Boolean = true,
     parse: ObjectCursor<T>.() -> R,
-): R = iterator().parse(consumeAll, parse).also { if (closeWhenDone) close() }
+): R = try {
+    iterator().parse(consumeAll, parse)
+} finally {
+    if (closeWhenDone) close()
+}
 
-public inline fun <T, R> ObjectCursor<T>.parseMultiple(
-    parse: ObjectCursor<T>.() -> R,
-): List<R> = buildList { while (!isEndOfInput) add(parse()) }
-
-public inline fun <T, R> Iterator<T>.parseMultiple(
-    parse: ObjectCursor<T>.() -> R,
-): List<R> = toCursor().parseMultiple(parse)
-
-public inline fun <T, R> Iterable<T>.parseMultiple(
-    parse: ObjectCursor<T>.() -> R,
-): List<R> = iterator().parseMultiple(parse)
-
-public inline fun <T, R> Stream<T>.parseMultiple(
-    closeWhenDone: Boolean = true,
-    parse: ObjectCursor<T>.() -> R,
-): List<R> = iterator().parseMultiple(parse).also { if (closeWhenDone) close() }
+public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> = ObjectTokenizer(this, parseToken)
 
 public fun <T> ObjectCursor<T>.crash(message: String, cause: Throwable? = null): Nothing =
     throw ObjectCursorException(offset, current, message, cause)
@@ -157,3 +142,24 @@ private class IteratorCursor<T>(private val iter: Iterator<T>) : ObjectCursorBas
         }
     }
 }
+
+private class ObjectTokenizer<S : DataCursor, T>(
+    private val base: S,
+    private val parse: S.() -> T,
+) : ObjectCursorBase<T>() {
+    @Suppress("UNCHECKED_CAST")
+    override var current: T = null as T
+    override val isEndOfInput get() = base.isEndOfInput
+
+    override fun next() {
+        advance()
+        current = base.parse()
+    }
+}
+
+private interface Token
+private interface Program
+private fun CharCursor.lex(): Token = TODO()
+private fun ObjectCursor<Token>.parse(): Program = TODO()
+
+private fun CharCursor.parseProgram(): Program = tokenize { lex() }.parse()
