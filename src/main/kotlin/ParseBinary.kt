@@ -1,5 +1,6 @@
 package serial
 
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
 @DslMarker
@@ -89,8 +90,7 @@ public fun ByteCursor.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::read
 // Capturing
 
 public class CapturingByteCursor<out S : ByteCursor>(public val base: S) : ByteCursor by base {
-    private var data = ByteArray(8)
-    private var count: Int = 0
+    private val data = ByteArrayOutputStream()
 
     override fun next() {
         capture(current)
@@ -98,13 +98,10 @@ public class CapturingByteCursor<out S : ByteCursor>(public val base: S) : ByteC
     }
 
     public fun capture(byte: Byte) {
-        if (data.size < count + 1) {
-            data = data.copyOf(data.size * 2)
-        }
-        data[count++] = byte
+        data.writeByte(byte)
     }
 
-    public fun getCaptured(): ByteArray = data.copyOf(count)
+    public fun getCaptured(): ByteArray = data.toByteArray()
 }
 
 public fun <S : ByteCursor> CapturingByteCursor<S>.capture(literal: ByteArray): Unit = literal.forEach(::capture)
