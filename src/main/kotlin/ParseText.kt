@@ -8,6 +8,8 @@ public interface CharCursor : DataCursor {
     public val current: Char
 }
 
+// Exceptions
+
 public class CharCursorException(
     public val offset: Int,
     public val line: Int,
@@ -17,7 +19,14 @@ public class CharCursorException(
     cause: Throwable? = null,
 ) : Exception("$description (found <$character>/${character.code} at $offset ($line:$column))", cause)
 
-// Some common helpers
+public fun CharCursor.crash(message: String, cause: Throwable? = null): Nothing =
+    throw CharCursorException(offset, line, offset - lineStart + 1, current, message, cause)
+
+public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
+    if (!condition) crash(message())
+}
+
+// Initialize
 
 public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { next() }
 public fun String.toCursor(): CharCursor = StringCursor(this).apply { next() }
@@ -43,12 +52,7 @@ public inline fun <T> String.parse(consumeAll: Boolean = true, parse: CharCursor
 
 public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor = CharTokenizer(this, parseToken)
 
-public fun CharCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw CharCursorException(offset, line, offset - lineStart + 1, current, message, cause)
-
-public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
-    if (!condition) crash(message())
-}
+// Some common helpers
 
 public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     next()
@@ -64,8 +68,6 @@ public inline fun CharCursor.readWhile(predicate: (Char) -> Boolean): Int {
     return count
 }
 
-public fun CharCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
-
 public fun CharCursor.readOptionalChar(char: Char, ignoreCase: Boolean = false): Boolean =
     readIf { it.equals(char, ignoreCase) }
 
@@ -74,6 +76,8 @@ public fun CharCursor.readRequiredChar(char: Char, ignoreCase: Boolean = false):
 
 public fun CharCursor.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
     literal.forEach { readRequiredChar(it, ignoreCase) }
+
+public fun CharCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
 
 // Capturing
 

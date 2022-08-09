@@ -16,6 +16,8 @@ public interface ObjectCursor<T> : DataCursor {
     public val current: T
 }
 
+// Exceptions
+
 public class ObjectCursorException(
     public val offset: Int,
     public val value: Any?,
@@ -23,7 +25,14 @@ public class ObjectCursorException(
     cause: Throwable? = null,
 ) : Exception("$description (found <$value> at $offset)", cause)
 
-// Some common helpers
+public fun <T> ObjectCursor<T>.crash(message: String, cause: Throwable? = null): Nothing =
+    throw ObjectCursorException(offset, current, message, cause)
+
+public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> String) {
+    if (!condition) crash(message())
+}
+
+// Initialize
 
 public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
 
@@ -51,12 +60,7 @@ public inline fun <T, R> Stream<T>.parse(
 
 public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> = ObjectTokenizer(this, parseToken)
 
-public fun <T> ObjectCursor<T>.crash(message: String, cause: Throwable? = null): Nothing =
-    throw ObjectCursorException(offset, current, message, cause)
-
-public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> String) {
-    if (!condition) crash(message())
-}
+// Some common helpers
 
 public inline fun <T> ObjectCursor<T>.readIf(predicate: (T) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
@@ -156,10 +160,3 @@ private class ObjectTokenizer<S : DataCursor, T>(
         current = base.parse()
     }
 }
-
-private interface Token
-private interface Program
-private fun CharCursor.lex(): Token = TODO()
-private fun ObjectCursor<Token>.parse(): Program = TODO()
-
-private fun CharCursor.parseProgram(): Program = tokenize { lex() }.parse()

@@ -7,6 +7,8 @@ public interface ByteCursor : DataCursor {
     public val current: Byte
 }
 
+// Exceptions
+
 public class ByteCursorException(
     public val offset: Int,
     public val byte: Byte,
@@ -14,7 +16,14 @@ public class ByteCursorException(
     cause: Throwable? = null,
 ) : Exception("$description (found $byte at $offset)", cause)
 
-// Some common helpers
+public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
+    throw ByteCursorException(offset, current, message, cause)
+
+public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
+    if (!condition) crash(message())
+}
+
+// Initialize
 
 public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { next() }
 public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { next() }
@@ -40,12 +49,7 @@ public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCur
 
 public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor = ByteTokenizer(this, parseToken)
 
-public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw ByteCursorException(offset, current, message, cause)
-
-public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
-    if (!condition) crash(message())
-}
+// Some common helpers
 
 public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     next()
