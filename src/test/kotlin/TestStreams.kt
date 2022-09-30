@@ -15,7 +15,7 @@ class TestStreams {
     @Test
     fun testBytes() {
         val values = ByteArray(256, Int::toByte)
-        val serialized = makeByteArray { for (value in values) writeByte(value) }
+        val serialized = makeByteArray { values.forEach(::writeByte) }
         assertEquals(256, serialized.size)
         val deserialized = serialized.asInputStream { ByteArray(values.size) { readByte() } }
         assertContentEquals(values, deserialized)
@@ -25,7 +25,7 @@ class TestStreams {
     @Test
     fun testUBytes() {
         val values = UByteArray(256, Int::toUByte)
-        val serialized = makeByteArray { for (value in values) writeUByte(value) }
+        val serialized = makeByteArray { values.forEach(::writeUByte) }
         assertEquals(256, serialized.size)
         val deserialized = serialized.asInputStream { UByteArray(values.size) { readUByte() } }
         assertContentEquals(values, deserialized)
@@ -34,7 +34,7 @@ class TestStreams {
     @Test
     fun testShorts() {
         val values = ShortArray(256) { Random.nextInt().toShort() }
-        val serialized = makeByteArray { for (value in values) writeShort(value) }
+        val serialized = makeByteArray { values.forEach(::writeShort) }
         assertEquals(512, serialized.size)
         val deserialized = serialized.asInputStream { ShortArray(values.size) { readShort() } }
         assertContentEquals(values, deserialized)
@@ -44,7 +44,7 @@ class TestStreams {
     @Test
     fun testUShorts() {
         val values = UShortArray(256) { Random.nextInt().toUShort() }
-        val serialized = makeByteArray { for (value in values) writeUShort(value) }
+        val serialized = makeByteArray { values.forEach(::writeUShort) }
         assertEquals(512, serialized.size)
         val deserialized = serialized.asInputStream { UShortArray(values.size) { readUShort() } }
         assertContentEquals(values, deserialized)
@@ -53,7 +53,7 @@ class TestStreams {
     @Test
     fun testInts() {
         val values = IntArray(256) { Random.nextInt() }
-        val serialized = makeByteArray { for (value in values) writeInt(value) }
+        val serialized = makeByteArray { values.forEach(::writeInt) }
         assertEquals(1024, serialized.size)
         val deserialized = serialized.asInputStream { IntArray(values.size) { readInt() } }
         assertContentEquals(values, deserialized)
@@ -63,7 +63,7 @@ class TestStreams {
     @Test
     fun testUInts() {
         val values = UIntArray(256) { Random.nextUInt() }
-        val serialized = makeByteArray { for (value in values) writeUInt(value) }
+        val serialized = makeByteArray { values.forEach(::writeUInt) }
         assertEquals(1024, serialized.size)
         val deserialized = serialized.asInputStream { UIntArray(values.size) { readUInt() } }
         assertContentEquals(values, deserialized)
@@ -72,7 +72,7 @@ class TestStreams {
     @Test
     fun testLongs() {
         val values = LongArray(256) { Random.nextLong() }
-        val serialized = makeByteArray { for (value in values) writeLong(value) }
+        val serialized = makeByteArray { values.forEach(::writeLong) }
         assertEquals(2048, serialized.size)
         val deserialized = serialized.asInputStream { LongArray(values.size) { readLong() } }
         assertContentEquals(values, deserialized)
@@ -82,7 +82,7 @@ class TestStreams {
     @Test
     fun testULongs() {
         val values = ULongArray(256) { Random.nextULong() }
-        val serialized = makeByteArray { for (value in values) writeULong(value) }
+        val serialized = makeByteArray { values.forEach(::writeULong) }
         assertEquals(2048, serialized.size)
         val deserialized = serialized.asInputStream { ULongArray(values.size) { readULong() } }
         assertContentEquals(values, deserialized)
@@ -91,7 +91,7 @@ class TestStreams {
     @Test
     fun testFloats() {
         val values = FloatArray(256) { Random.nextFloat() }
-        val serialized = makeByteArray { for (value in values) writeFloat(value) }
+        val serialized = makeByteArray { values.forEach(::writeFloat) }
         assertEquals(1024, serialized.size)
         val deserialized = serialized.asInputStream { FloatArray(values.size) { readFloat() } }
         assertContentEquals(values, deserialized)
@@ -100,7 +100,7 @@ class TestStreams {
     @Test
     fun testDoubles() {
         val values = DoubleArray(256) { Random.nextDouble() }
-        val serialized = makeByteArray { for (value in values) writeDouble(value) }
+        val serialized = makeByteArray { values.forEach(::writeDouble) }
         assertEquals(2048, serialized.size)
         val deserialized = serialized.asInputStream { DoubleArray(values.size) { readDouble() } }
         assertContentEquals(values, deserialized)
@@ -114,7 +114,7 @@ class TestStreams {
             "Hello, World!",
             "This is a\ntest \"\u4321",
         )
-        val serialized = makeByteArray { for (value in values) writeString(value) }
+        val serialized = makeByteArray { values.forEach(::writeString) }
         assertEquals(52, serialized.size)
         val deserialized = serialized.asInputStream { List(values.size) { readString() } }
         assertEquals(values, deserialized)
@@ -125,35 +125,33 @@ class TestStreams {
     @Test
     fun testEnums() {
         val values = enumValues<TestEnum>().toList()
-        val serialized = makeByteArray { for (value in values) writeEnumByName(value) }
+        val serialized = makeByteArray { values.forEach(::writeEnumByName) }
         assertEquals(20, serialized.size)
         val deserialized = serialized.asInputStream { List(values.size) { readEnumByName<TestEnum>() } }
         assertEquals(values, deserialized)
 
-        val serializedBytes = makeByteArray { for (value in values) writeEnumByOrdinalByte(value) }
+        val serializedBytes = makeByteArray { values.forEach(::writeEnumByOrdinalByte) }
         assertEquals(4, serializedBytes.size)
         val deserializedBytes = serializedBytes.asInputStream {
             List(values.size) { readEnumByOrdinalByte<TestEnum>() }
         }
         assertEquals(values, deserializedBytes)
 
-        val serializedShorts = makeByteArray { for (value in values) writeEnumByOrdinalShort(value) }
+        val serializedShorts = makeByteArray { values.forEach(::writeEnumByOrdinalShort) }
         assertEquals(8, serializedShorts.size)
         val deserializedShorts = serializedShorts.asInputStream {
             List(values.size) { readEnumByOrdinalShort<TestEnum>() }
         }
         assertEquals(values, deserializedShorts)
 
-        val serializedInts = makeByteArray { for (value in values) writeEnumByOrdinal(value) }
+        val serializedInts = makeByteArray { values.forEach(::writeEnumByOrdinal) }
         assertEquals(16, serializedInts.size)
-        val deserializedInts =
-            serializedInts.asInputStream { List(values.size) { readEnumByOrdinal<TestEnum>() } }
+        val deserializedInts = serializedInts.asInputStream { List(values.size) { readEnumByOrdinal<TestEnum>() } }
         assertEquals(values, deserializedInts)
 
-        val serializedAuto = makeByteArray { for (value in values) writeEnumByOrdinalAuto(value) }
+        val serializedAuto = makeByteArray { values.forEach(::writeEnumByOrdinalAuto) }
         assertEquals(4, serializedAuto.size)
-        val deserializedAuto =
-            serializedAuto.asInputStream { List(values.size) { readEnumByOrdinalAuto<TestEnum>() } }
+        val deserializedAuto = serializedAuto.asInputStream { List(values.size) { readEnumByOrdinalAuto<TestEnum>() } }
         assertEquals(values, deserializedAuto)
     }
 
