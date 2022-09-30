@@ -62,6 +62,8 @@ public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T
 
 // Some common helpers
 
+public fun <T> ObjectCursor<T>.read(): T = current.also { next() }
+
 public inline fun <T> ObjectCursor<T>.readIf(predicate: (T) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         next()

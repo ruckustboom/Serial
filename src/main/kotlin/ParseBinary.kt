@@ -51,6 +51,8 @@ public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCurs
 
 // Some common helpers
 
+public fun ByteCursor.read(): Byte = current.also { next() }
+
 public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     next()
     true

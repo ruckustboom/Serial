@@ -54,6 +54,8 @@ public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCurs
 
 // Some common helpers
 
+public fun CharCursor.read(): Char = current.also { next() }
+
 public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     next()
     true
