@@ -5,35 +5,8 @@ import java.io.OutputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.fail
 
 class TestWrappers {
-    @Test
-    fun testReadOrThrow() {
-        val bytes = makeByteArray {
-            writeByte(0)
-            writeByte(1)
-            writeByte(-1)
-            writeByte(127)
-            writeByte(-128)
-        }
-        bytes.asInputStream {
-            assertEquals(0, readOrThrow())
-            assertEquals(1, readOrThrow())
-            assertEquals(255, readOrThrow())
-            assertEquals(127, readOrThrow())
-            assertEquals(128, readOrThrow())
-            try {
-                val x = readOrThrow()
-                fail("Expected EOI, found $x")
-            } catch (e: IllegalStateException) {
-                assertEquals("Reached end of stream", e.message)
-            } catch (e: Throwable) {
-                fail("Expected IllegalStateException, threw $e")
-            }
-        }
-    }
-
     @Test
     fun testNullable() {
         val five = makeByteArray { writeNullable(5, OutputStream::writeInt) }
