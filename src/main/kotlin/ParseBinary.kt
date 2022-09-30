@@ -207,6 +207,6 @@ private class ByteTokenizer<S : DataCursor>(private val base: S, private val par
     }
 }
 
-private class ByteCursorInputStream(private val cursor: ByteCursor): InputStream() {
+private class ByteCursorInputStream(private val cursor: ByteCursor) : InputStream() {
     override fun read() = if (cursor.isEndOfInput) -1 else cursor.read().toInt() and 0xFF
 }

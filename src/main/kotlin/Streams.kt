@@ -12,6 +12,7 @@ public fun InputStream.readByte(): Byte {
     check(x in 0x00..0xFF) { "Reached end of stream" }
     return x.toByte()
 }
+
 public fun OutputStream.writeByte(value: Byte): Unit = write(value.toInt() and 0xFF)
 
 public fun InputStream.readBoolean(): Boolean = readBoolean(::readByte)
