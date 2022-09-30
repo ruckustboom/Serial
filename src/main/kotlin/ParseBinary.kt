@@ -101,6 +101,25 @@ public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArr
 
 public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
 
+// Primitives
+
+public fun ByteCursor.readBoolean(): Boolean = readBoolean(::read)
+public fun ByteCursor.readUByte(): UByte = readUByte(::read)
+public fun ByteCursor.readShort(): Short = readShort(::read)
+public fun ByteCursor.readUShort(): UShort = readUShort(::read)
+public fun ByteCursor.readInt(): Int = readInt(::read)
+public fun ByteCursor.readUInt(): UInt = readUInt(::read)
+public fun ByteCursor.readLong(): Long = readLong(::read)
+public fun ByteCursor.readULong(): ULong = readULong(::read)
+public fun ByteCursor.readFloat(): Float = readFloat(::read)
+public fun ByteCursor.readDouble(): Double = readDouble(::read)
+public fun ByteCursor.readString(): String = readString(::read)
+public inline fun <reified T : Enum<T>> ByteCursor.readEnumByName(): T = readEnumByName(::read)
+public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalAuto(): T = readEnumByOrdinalAuto(::read)
+public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalByte(): T = readEnumByOrdinalByte(::read)
+public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalShort(): T = readEnumByOrdinalShort(::read)
+public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinal(): T = readEnumByOrdinal(::read)
+
 // Implementation
 
 private abstract class ByteCursorBase : ByteCursor {
