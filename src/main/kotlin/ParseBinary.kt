@@ -103,6 +103,9 @@ public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(c
 
 // Primitives
 
+public fun ByteCursor.toInputStream(): InputStream = ByteCursorInputStream(this)
+public inline fun <R> ByteCursor.asInputStream(action: InputStream.() -> R): R = toInputStream().use(action)
+
 public fun ByteCursor.readBoolean(): Boolean = readBoolean(::read)
 public fun ByteCursor.readUByte(): UByte = readUByte(::read)
 public fun ByteCursor.readShort(): Short = readShort(::read)
@@ -119,6 +122,45 @@ public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalAuto(): T = 
 public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalByte(): T = readEnumByOrdinalByte(::read)
 public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinalShort(): T = readEnumByOrdinalShort(::read)
 public inline fun <reified T : Enum<T>> ByteCursor.readEnumByOrdinal(): T = readEnumByOrdinal(::read)
+
+// Extensions
+
+public inline fun <T : Any> ByteCursor.readNullable(readValue: ByteCursor.() -> T): T? =
+    if (readBoolean()) readValue() else null
+
+public inline fun ByteCursor.repeatRead(action: ByteCursor.(index: Int) -> Unit) {
+    repeat(readInt()) { action(it) }
+}
+
+public inline fun <T> ByteCursor.readValues(readValue: ByteCursor.() -> T, action: (value: T) -> Unit) {
+    repeatRead { action(readValue()) }
+}
+
+public inline fun <T, C : MutableCollection<T>> ByteCursor.readValuesTo(values: C, readValue: ByteCursor.() -> T): C {
+    readValues(readValue) { values += it }
+    return values
+}
+
+public inline fun <T> ByteCursor.readValues(readValue: ByteCursor.() -> T): List<T> = List(readInt()) { readValue() }
+
+public inline fun <K, V> ByteCursor.readMap(
+    readKey: ByteCursor.() -> K,
+    readValue: ByteCursor.(K) -> V,
+    action: (key: K, value: V) -> Unit,
+): Unit = repeatRead {
+    val key = readKey()
+    val value = readValue(key)
+    action(key, value)
+}
+
+public inline fun <K, V> ByteCursor.readMap(
+    readKey: ByteCursor.() -> K,
+    readValue: ByteCursor.(K) -> V,
+    into: MutableMap<K, V> = mutableMapOf(),
+): Map<K, V> {
+    readMap(readKey, readValue) { key, value -> into[key] = value }
+    return into
+}
 
 // Implementation
 
@@ -163,4 +205,8 @@ private class ByteTokenizer<S : DataCursor>(private val base: S, private val par
         advance()
         current = base.parse()
     }
+}
+
+private class ByteCursorInputStream(private val cursor: ByteCursor): InputStream() {
+    override fun read() = if (cursor.isEndOfInput) -1 else cursor.read().toInt() and 0xFF
 }

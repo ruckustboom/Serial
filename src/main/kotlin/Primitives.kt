@@ -1,60 +1,139 @@
 package serial
 
-import java.io.InputStream
-import java.io.OutputStream
+public inline fun readBoolean(readByte: () -> Byte): Boolean = readByte() != 0.toByte()
+public inline fun writeBoolean(value: Boolean, writeByte: (Byte) -> Unit): Unit = writeByte(if (value) 1 else 0)
 
-public fun InputStream.readBoolean(): Boolean = readBoolean(::readByte)
-public fun OutputStream.writeBoolean(value: Boolean): Unit = writeBoolean(value, ::writeByte)
+public inline fun readUByte(readByte: () -> Byte): UByte = readByte().toUByte()
+public inline fun writeUByte(value: UByte, writeByte: (Byte) -> Unit): Unit = writeByte(value.toByte())
 
-public fun InputStream.readByte(): Byte = readOrThrow().toByte()
-public fun OutputStream.writeByte(value: Byte): Unit = write(value.toInt() and 0xFF)
+public inline fun readShort(readByte: () -> Byte): Short {
+    var value = 0
+    repeat(Short.SIZE_BYTES) {
+        value = value shl 8 or (readByte().toInt() and 0xFF)
+    }
+    return value.toShort()
+}
 
-public fun InputStream.readUByte(): UByte = readUByte(::readByte)
-public fun OutputStream.writeUByte(value: UByte): Unit = writeUByte(value, ::writeByte)
+public inline fun writeShort(value: Short, writeByte: (Byte) -> Unit) {
+    repeat(Short.SIZE_BYTES) {
+        writeByte((value.toInt() ushr (Short.SIZE_BYTES - 1 - it) * 8).toByte())
+    }
+}
 
-public fun InputStream.readShort(): Short = readShort(::readByte)
-public fun OutputStream.writeShort(value: Short): Unit = writeShort(value, ::writeByte)
+public inline fun readUShort(readByte: () -> Byte): UShort = readShort(readByte).toUShort()
+public inline fun writeUShort(value: UShort, writeByte: (Byte) -> Unit): Unit = writeShort(value.toShort(), writeByte)
 
-public fun InputStream.readUShort(): UShort = readUShort(::readByte)
-public fun OutputStream.writeUShort(value: UShort): Unit = writeUShort(value, ::writeByte)
+public inline fun readInt(readByte: () -> Byte): Int {
+    var value = 0
+    repeat(Int.SIZE_BYTES) {
+        value = value shl 8 or (readByte().toInt() and 0xFF)
+    }
+    return value
+}
 
-public fun InputStream.readInt(): Int = readInt(::readByte)
-public fun OutputStream.writeInt(value: Int): Unit = writeInt(value, ::writeByte)
+public inline fun writeInt(value: Int, writeByte: (Byte) -> Unit) {
+    repeat(Int.SIZE_BYTES) {
+        writeByte((value ushr (Int.SIZE_BYTES - 1 - it) * 8).toByte())
+    }
+}
 
-public fun InputStream.readUInt(): UInt = readUInt(::readByte)
-public fun OutputStream.writeUInt(value: UInt): Unit = writeUInt(value, ::writeByte)
+public inline fun readUInt(readByte: () -> Byte): UInt = readInt(readByte).toUInt()
+public inline fun writeUInt(value: UInt, writeByte: (Byte) -> Unit): Unit = writeInt(value.toInt(), writeByte)
 
-public fun InputStream.readLong(): Long = readLong(::readByte)
-public fun OutputStream.writeLong(value: Long): Unit = writeLong(value, ::writeByte)
+public inline fun readLong(readByte: () -> Byte): Long {
+    var value = 0L
+    repeat(Long.SIZE_BYTES) {
+        value = value shl 8 or (readByte().toLong() and 0xFF)
+    }
+    return value
+}
 
-public fun InputStream.readULong(): ULong = readULong(::readByte)
-public fun OutputStream.writeULong(value: ULong): Unit = writeULong(value, ::writeByte)
+public inline fun writeLong(value: Long, writeByte: (Byte) -> Unit) {
+    repeat(Long.SIZE_BYTES) {
+        writeByte((value ushr (Long.SIZE_BYTES - 1 - it) * 8).toByte())
+    }
+}
 
-public fun InputStream.readFloat(): Float = readFloat(::readByte)
-public fun OutputStream.writeFloat(value: Float): Unit = writeFloat(value, ::writeByte)
+public inline fun readULong(readByte: () -> Byte): ULong = readLong(readByte).toULong()
+public inline fun writeULong(value: ULong, writeByte: (Byte) -> Unit): Unit = writeLong(value.toLong(), writeByte)
 
-public fun InputStream.readDouble(): Double = readDouble(::readByte)
-public fun OutputStream.writeDouble(value: Double): Unit = writeDouble(value, ::writeByte)
+public inline fun readFloat(readByte: () -> Byte): Float = Float.fromBits(readInt(readByte))
+public inline fun writeFloat(value: Float, writeByte: (Byte) -> Unit): Unit = writeInt(value.toRawBits(), writeByte)
 
-public fun InputStream.readString(): String = readString(::readByte, ::read)
-public fun OutputStream.writeString(value: String): Unit = writeString(value, ::writeByte, ::write)
+public inline fun readDouble(readByte: () -> Byte): Double = Double.fromBits(readLong(readByte))
+public inline fun writeDouble(value: Double, writeByte: (Byte) -> Unit): Unit = writeLong(value.toRawBits(), writeByte)
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByName(): T = readEnumByName(::readByte, ::read)
-public fun <T : Enum<T>> OutputStream.writeEnumByName(value: T): Unit = writeEnumByName(value, ::writeByte, ::write)
+public inline fun readString(readByte: () -> Byte): String =
+    ByteArray(readInt(readByte)) { readByte() }.decodeToString()
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalAuto(): T = readEnumByOrdinalAuto(::readByte)
+public inline fun writeString(value: String, writeByte: (Byte) -> Unit) {
+    val bytes = value.encodeToByteArray()
+    writeInt(bytes.size, writeByte)
+    bytes.forEach(writeByte)
+}
 
-public inline fun <reified T : Enum<T>> OutputStream.writeEnumByOrdinalAuto(value: T): Unit =
-    writeEnumByOrdinalAuto(value, ::writeByte)
+public inline fun readString(readByte: () -> Byte, readBytes: (ByteArray) -> Int): String {
+    val count = readInt(readByte)
+    val bytes = ByteArray(count)
+    check(readBytes(bytes) == count)
+    return bytes.decodeToString()
+}
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalByte(): T = readEnumByOrdinalByte(::readByte)
-public fun <T : Enum<T>> OutputStream.writeEnumByOrdinalByte(value: T): Unit =
-    writeEnumByOrdinalByte(value, ::writeByte)
+public inline fun writeString(value: String, writeByte: (Byte) -> Unit, writeBytes: (ByteArray) -> Unit) {
+    val bytes = value.encodeToByteArray()
+    writeInt(bytes.size, writeByte)
+    writeBytes(bytes)
+}
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinalShort(): T = readEnumByOrdinalShort(::readByte)
-public fun <T : Enum<T>> OutputStream.writeEnumByOrdinalShort(value: T): Unit =
-    writeEnumByOrdinalShort(value, ::writeByte)
+public inline fun <reified T : Enum<T>> readEnumByName(readByte: () -> Byte): T = enumValueOf(readString(readByte))
+public inline fun <T : Enum<T>> writeEnumByName(writeByte: (Byte) -> Unit, value: T): Unit =
+    writeString(value.name, writeByte)
 
-public inline fun <reified T : Enum<T>> InputStream.readEnumByOrdinal(): T = readEnumByOrdinal(::readByte)
-public fun <T : Enum<T>> OutputStream.writeEnumByOrdinal(value: T): Unit =
-    writeEnumByOrdinal(value, ::writeByte)
+public inline fun <reified T : Enum<T>> readEnumByName(readByte: () -> Byte, readBytes: (ByteArray) -> Int): T =
+    enumValueOf(readString(readByte, readBytes))
+
+public inline fun <T : Enum<T>> writeEnumByName(
+    value: T,
+    writeByte: (Byte) -> Unit,
+    writeBytes: (ByteArray) -> Unit,
+): Unit = writeString(value.name, writeByte, writeBytes)
+
+public inline fun <reified T : Enum<T>> readEnumByOrdinalAuto(readByte: () -> Byte): T {
+    val variants = enumValues<T>()
+    return variants[when {
+        variants.size <= UByte.MAX_VALUE.toInt() -> readUByte(readByte).toInt()
+        variants.size <= UShort.MAX_VALUE.toInt() -> readUShort(readByte).toInt()
+        else -> readInt(readByte)
+    }]
+}
+
+public inline fun <reified T : Enum<T>> writeEnumByOrdinalAuto(value: T, writeByte: (Byte) -> Unit) {
+    val variants = enumValues<T>()
+    when {
+        variants.size <= UByte.MAX_VALUE.toInt() -> writeUByte(value.ordinal.toUByte(), writeByte)
+        variants.size <= UShort.MAX_VALUE.toInt() -> writeUShort(value.ordinal.toUShort(), writeByte)
+        else -> writeInt(value.ordinal, writeByte)
+    }
+}
+
+public inline fun <reified T : Enum<T>> readEnumByOrdinalByte(readByte: () -> Byte): T =
+    enumValues<T>()[readUByte(readByte).toInt()]
+
+public inline fun <T : Enum<T>> writeEnumByOrdinalByte(value: T, writeByte: (Byte) -> Unit) {
+    require(value.ordinal < UByte.MAX_VALUE.toInt())
+    writeUByte(value.ordinal.toUByte(), writeByte)
+}
+
+public inline fun <reified T : Enum<T>> readEnumByOrdinalShort(readByte: () -> Byte): T =
+    enumValues<T>()[readUShort(readByte).toInt()]
+
+public inline fun <T : Enum<T>> writeEnumByOrdinalShort(value: T, writeByte: (Byte) -> Unit) {
+    require(value.ordinal < UShort.MAX_VALUE.toInt())
+    writeUShort(value.ordinal.toUShort(), writeByte)
+}
+
+public inline fun <reified T : Enum<T>> readEnumByOrdinal(readByte: () -> Byte): T =
+    enumValues<T>()[readInt(readByte)]
+
+public inline fun <T : Enum<T>> writeEnumByOrdinal(value: T, writeByte: (Byte) -> Unit): Unit =
+    writeInt(value.ordinal, writeByte)
