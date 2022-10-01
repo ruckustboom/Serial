@@ -47,7 +47,8 @@ public inline fun <T> InputStream.parse(
 public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T =
     toCursor().parse(consumeAll, parse)
 
-public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor = ByteTokenizer(this, parseToken)
+public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor =
+    ByteTokenizer(this, parseToken).apply { next() }
 
 // Some common helpers
 
@@ -199,11 +200,13 @@ private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
 
 private class ByteTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Byte) : ByteCursorBase() {
     override var current: Byte = 0
-    override val isEndOfInput get() = base.isEndOfInput
+    override var isEndOfInput = false
 
     override fun next() {
-        advance()
-        current = base.parse()
+        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
+            advance()
+            current = base.parse()
+        }
     }
 }
 

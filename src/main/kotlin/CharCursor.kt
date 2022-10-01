@@ -50,7 +50,8 @@ public inline fun <T> Reader.parse(
 public inline fun <T> String.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T =
     toCursor().parse(consumeAll, parse)
 
-public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor = CharTokenizer(this, parseToken)
+public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor =
+    CharTokenizer(this, parseToken).apply { next() }
 
 // Some common helpers
 
@@ -155,10 +156,12 @@ private class ReaderCursor(private val reader: Reader) : CharCursorBase() {
 
 private class CharTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Char) : CharCursorBase() {
     override var current = '\u0000'
-    override val isEndOfInput get() = base.isEndOfInput
+    override var isEndOfInput = false
 
     override fun next() {
-        advance()
-        current = base.parse()
+        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
+            advance()
+            current = base.parse()
+        }
     }
 }
