@@ -34,6 +34,8 @@ public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> 
 
 // Initialize
 
+public fun <T> Iterable<T>.toCursor(): ObjectCursor<T> = iterator().toCursor()
+
 public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
 
 public inline fun <T, R> ObjectCursor<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R {
@@ -58,7 +60,8 @@ public inline fun <T, R> Stream<T>.parse(
     if (closeWhenDone) close()
 }
 
-public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> = ObjectTokenizer(this, parseToken)
+public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> =
+    ObjectTokenizer(this, parseToken).apply { next() }
 
 // Some common helpers
 
@@ -155,10 +158,12 @@ private class ObjectTokenizer<S : DataCursor, T>(
 ) : ObjectCursorBase<T>() {
     @Suppress("UNCHECKED_CAST")
     override var current: T = null as T
-    override val isEndOfInput get() = base.isEndOfInput
+    override var isEndOfInput = false
 
     override fun next() {
-        advance()
-        current = base.parse()
+        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
+            advance()
+            current = base.parse()
+        }
     }
 }
