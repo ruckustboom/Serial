@@ -1,5 +1,7 @@
 package serial
 
+import java.io.OutputStream
+import kotlin.math.PI
 import kotlin.test.*
 
 class TestByteCursor {
@@ -44,6 +46,69 @@ class TestByteCursor {
                     assertEquals(3, readWhile { it < 33 })
                 },
             )
+        }
+    }
+
+    enum class Bool { TRUE, FALSE, FILE_NOT_FOUND }
+
+    @Test
+    fun testPrimitives() {
+        makeInputStream {
+            writeBoolean(true)
+            writeByte(-19)
+            writeUByte(17u)
+            writeShort(-320)
+            writeUShort(497u)
+            writeInt(-42)
+            writeUInt(42u)
+            writeLong(Long.MIN_VALUE)
+            writeULong(ULong.MAX_VALUE)
+            writeFloat(Float.POSITIVE_INFINITY)
+            writeDouble(PI)
+            writeString("this is a test")
+            writeEnumByName(Bool.TRUE)
+            writeEnumByOrdinal(Bool.FALSE)
+            writeEnumByOrdinalAuto(Bool.FILE_NOT_FOUND)
+        }.parse {
+            assertEquals(true, readBoolean())
+            assertEquals(-19, read())
+            assertEquals(17u, readUByte())
+            assertEquals(-320, readShort())
+            assertEquals(497u, readUShort())
+            assertEquals(-42, readInt())
+            assertEquals(42u, readUInt())
+            assertEquals(Long.MIN_VALUE, readLong())
+            assertEquals(ULong.MAX_VALUE, readULong())
+            assertEquals(Float.POSITIVE_INFINITY, readFloat())
+            assertEquals(PI, readDouble())
+            assertEquals("this is a test", readString())
+            assertEquals(Bool.TRUE, readEnumByName())
+            assertEquals(Bool.FALSE, readEnumByOrdinal())
+            assertEquals(Bool.FILE_NOT_FOUND, readEnumByOrdinalAuto())
+            assertTrue(isEndOfInput)
+        }
+    }
+
+    @Test
+    fun testExtensions() {
+        makeInputStream {
+            writeNullable("Fred", OutputStream::writeString)
+            writeNullable(null, OutputStream::writeString)
+            writeValues(listOf("this", "is", "a", "test"), OutputStream::writeString)
+            writeMap(
+                mapOf("a" to "first letter", "fred" to "good test name"),
+                OutputStream::writeString,
+                OutputStream::writeString,
+            )
+        }.parse {
+            assertEquals("Fred", readNullable(ByteCursor::readString))
+            assertEquals(null, readNullable(ByteCursor::readString))
+            assertEquals(listOf("this", "is", "a", "test"), readValues(ByteCursor::readString))
+            assertEquals(
+                mapOf("a" to "first letter", "fred" to "good test name"),
+                readMap({ readString() }, { readString() }),
+            )
+            assertTrue(isEndOfInput)
         }
     }
 
