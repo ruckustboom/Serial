@@ -9,7 +9,7 @@ public annotation class CursorDSL
 public interface DataCursor {
     public val offset: Int
     public val isEndOfInput: Boolean
-    public fun next()
+    public fun advance()
 }
 
 public interface ObjectCursor<T> : DataCursor {
@@ -36,7 +36,7 @@ public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> 
 
 public fun <T> Iterable<T>.toCursor(): ObjectCursor<T> = iterator().toCursor()
 
-public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { next() }
+public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { advance() }
 
 public inline fun <T, R> ObjectCursor<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R {
     val result = parse()
@@ -61,22 +61,22 @@ public inline fun <T, R> Stream<T>.parse(
 }
 
 public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> =
-    ObjectTokenizer(this, parseToken).apply { next() }
+    ObjectTokenizer(this, parseToken).apply { advance() }
 
 // Some common helpers
 
-public fun <T> ObjectCursor<T>.read(): T = current.also { next() }
+public fun <T> ObjectCursor<T>.read(): T = current.also { advance() }
 
 public inline fun <T> ObjectCursor<T>.readIf(predicate: (T) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
-        next()
+        advance()
         true
     } else false
 
 public inline fun <T> ObjectCursor<T>.readWhile(predicate: (T) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
-        next()
+        advance()
         count++
     }
     return count
@@ -94,9 +94,9 @@ public fun <T> ObjectCursor<T>.readLiteral(literal: List<T>): Unit = literal.for
 public class CapturingObjectCursor<T, out S : ObjectCursor<T>>(public val base: S) : ObjectCursor<T> by base {
     private val data = mutableListOf<T>()
 
-    override fun next() {
+    override fun advance() {
         capture(current)
-        base.next()
+        base.advance()
     }
 
     public fun capture(value: T) {
@@ -118,7 +118,7 @@ public inline fun <T, S : ObjectCursor<T>> CapturingObjectCursor<T, S>.notCaptur
 public inline fun <T> ObjectCursor<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
     capturing { readWhile(predicate) }
 
-public fun <T> ObjectCursor<T>.captureCount(count: Int): List<T> = capturing { repeat(count) { next() } }
+public fun <T> ObjectCursor<T>.captureCount(count: Int): List<T> = capturing { repeat(count) { advance() } }
 
 // Implementation
 
@@ -126,7 +126,7 @@ private abstract class ObjectCursorBase<T> : ObjectCursor<T> {
     final override var offset = -1
         private set
 
-    fun advance() {
+    override fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
         offset++
     }
@@ -140,8 +140,8 @@ private class IteratorCursor<T>(private val iter: Iterator<T>) : ObjectCursorBas
 
     // Read
 
-    override fun next() {
-        advance()
+    override fun advance() {
+        super.advance()
         if (iter.hasNext()) {
             current = iter.next()
         } else {
@@ -160,9 +160,9 @@ private class ObjectTokenizer<S : DataCursor, T>(
     override var current: T = null as T
     override var isEndOfInput = false
 
-    override fun next() {
+    override fun advance() {
         if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            advance()
+            super.advance()
             current = base.parse()
         }
     }

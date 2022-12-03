@@ -28,8 +28,8 @@ public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
 
 // Initialize
 
-public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { next() }
-public fun String.toCursor(): CharCursor = StringCursor(this).apply { next() }
+public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { advance() }
+public fun String.toCursor(): CharCursor = StringCursor(this).apply { advance() }
 
 public inline fun <T> CharCursor.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T {
     val result = parse()
@@ -51,21 +51,21 @@ public inline fun <T> String.parse(consumeAll: Boolean = true, parse: CharCursor
     toCursor().parse(consumeAll, parse)
 
 public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor =
-    CharTokenizer(this, parseToken).apply { next() }
+    CharTokenizer(this, parseToken).apply { advance() }
 
 // Some common helpers
 
-public fun CharCursor.read(): Char = current.also { next() }
+public fun CharCursor.read(): Char = current.also { advance() }
 
 public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
-    next()
+    advance()
     true
 } else false
 
 public inline fun CharCursor.readWhile(predicate: (Char) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
-        next()
+        advance()
         count++
     }
     return count
@@ -87,9 +87,9 @@ public fun CharCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
 public class CapturingCharCursor<out S : CharCursor>(public val base: S) : CharCursor by base {
     private val data = StringBuilder()
 
-    override fun next() {
+    override fun advance() {
         capture(current)
-        base.next()
+        base.advance()
     }
 
     public fun capture(char: Char) {
@@ -108,7 +108,7 @@ public inline fun <S : CharCursor> CapturingCharCursor<S>.notCapturing(action: S
 
 public inline fun CharCursor.captureWhile(predicate: (Char) -> Boolean): String = capturing { readWhile(predicate) }
 
-public fun CharCursor.captureCount(count: Int): String = capturing { repeat(count) { next() } }
+public fun CharCursor.captureCount(count: Int): String = capturing { repeat(count) { advance() } }
 
 // Implementation
 
@@ -120,7 +120,7 @@ private abstract class CharCursorBase : CharCursor {
     final override var lineStart = 0
         private set
 
-    protected fun advance() {
+    override fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
         // Check for newline
         if (current == '\n') {
@@ -134,16 +134,14 @@ private abstract class CharCursorBase : CharCursor {
 private class StringCursor(private val string: String) : CharCursorBase() {
     override val current get() = if (offset in string.indices) string[offset] else '\u0000'
     override val isEndOfInput get() = offset >= string.length
-
-    override fun next() = advance()
 }
 
 private class ReaderCursor(private val reader: Reader) : CharCursorBase() {
     override var current = '\u0000'
     override var isEndOfInput = false
 
-    override fun next() {
-        advance()
+    override fun advance() {
+        super.advance()
         val next = reader.read()
         if (next >= 0) {
             current = next.toChar()
@@ -158,9 +156,9 @@ private class CharTokenizer<S : DataCursor>(private val base: S, private val par
     override var current = '\u0000'
     override var isEndOfInput = false
 
-    override fun next() {
+    override fun advance() {
         if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            advance()
+            super.advance()
             current = base.parse()
         }
     }

@@ -25,8 +25,8 @@ public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
 
 // Initialize
 
-public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { next() }
-public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { next() }
+public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { advance() }
+public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { advance() }
 
 public inline fun <T> ByteCursor.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T {
     val result = parse()
@@ -48,21 +48,21 @@ public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCur
     toCursor().parse(consumeAll, parse)
 
 public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor =
-    ByteTokenizer(this, parseToken).apply { next() }
+    ByteTokenizer(this, parseToken).apply { advance() }
 
 // Some common helpers
 
-public fun ByteCursor.read(): Byte = current.also { next() }
+public fun ByteCursor.read(): Byte = current.also { advance() }
 
 public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
-    next()
+    advance()
     true
 } else false
 
 public inline fun ByteCursor.readWhile(predicate: (Byte) -> Boolean): Int {
     var count = 0
     while (!isEndOfInput && predicate(current)) {
-        next()
+        advance()
         count++
     }
     return count
@@ -79,9 +79,9 @@ public fun ByteCursor.readLiteral(bytes: ByteArray): Unit = bytes.forEach(::read
 public class CapturingByteCursor<out S : ByteCursor>(public val base: S) : ByteCursor by base {
     private val data = ByteArrayOutputStream()
 
-    override fun next() {
+    override fun advance() {
         capture(current)
-        base.next()
+        base.advance()
     }
 
     public fun capture(byte: Byte) {
@@ -100,7 +100,7 @@ public inline fun <S : ByteCursor> CapturingByteCursor<S>.notCapturing(action: S
 
 public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray = capturing { readWhile(predicate) }
 
-public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { next() } }
+public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { advance() } }
 
 // Primitives
 
@@ -169,7 +169,7 @@ private abstract class ByteCursorBase : ByteCursor {
     final override var offset = -1
         private set
 
-    fun advance() {
+    override fun advance() {
         ensure(!isEndOfInput) { "Unexpected EOI" }
         offset++
     }
@@ -179,8 +179,8 @@ private class InputStreamCursor(private val stream: InputStream) : ByteCursorBas
     override var current: Byte = 0
     override var isEndOfInput = false
 
-    override fun next() {
-        advance()
+    override fun advance() {
+        super.advance()
         val next = stream.read()
         if (next >= 0) {
             current = next.toByte()
@@ -194,17 +194,15 @@ private class InputStreamCursor(private val stream: InputStream) : ByteCursorBas
 private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
     override val current get() = if (offset in bytes.indices) bytes[offset] else 0
     override val isEndOfInput get() = offset >= bytes.size
-
-    override fun next() = advance()
 }
 
 private class ByteTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Byte) : ByteCursorBase() {
     override var current: Byte = 0
     override var isEndOfInput = false
 
-    override fun next() {
+    override fun advance() {
         if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            advance()
+            super.advance()
             current = base.parse()
         }
     }
