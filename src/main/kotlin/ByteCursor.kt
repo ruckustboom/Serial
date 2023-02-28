@@ -10,7 +10,7 @@ public interface ByteCursor : DataCursor {
 // Exceptions
 
 public class ByteCursorException(
-    public val offset: Int,
+    public val offset: Long,
     public val byte: Byte,
     public val description: String,
     cause: Throwable? = null,
@@ -166,7 +166,7 @@ public inline fun <K, V> ByteCursor.readMap(
 // Implementation
 
 private abstract class ByteCursorBase : ByteCursor {
-    final override var offset = -1
+    final override var offset = -1L
         private set
 
     override fun advance() {
@@ -192,7 +192,7 @@ private class InputStreamCursor(private val stream: InputStream) : ByteCursorBas
 }
 
 private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
-    override val current get() = if (offset in bytes.indices) bytes[offset] else 0
+    override val current get() = if (offset in bytes.indices) bytes[offset.toInt()] else 0
     override val isEndOfInput get() = offset >= bytes.size
 }
 

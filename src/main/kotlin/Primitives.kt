@@ -137,3 +137,78 @@ public inline fun <reified T : Enum<T>> readEnumByOrdinal(readByte: () -> Byte):
 
 public inline fun <T : Enum<T>> writeEnumByOrdinal(value: T, writeByte: (Byte) -> Unit): Unit =
     writeInt(value.ordinal, writeByte)
+
+// Extensions
+
+public inline fun <T : Any> readNullable(readByte: () -> Byte, readValue: () -> T): T? =
+    if (readBoolean(readByte)) readValue() else null
+
+public inline fun <T : Any> writeNullable(value: T?, writeByte: (Byte) -> Unit, writeValue: (T) -> Unit) {
+    writeBoolean(value != null, writeByte)
+    if (value != null) writeValue(value)
+}
+
+public inline fun repeatRead(readByte: () -> Byte, action: (index: Int) -> Unit) {
+    repeat(readInt(readByte)) { action(it) }
+}
+
+public inline fun repeatWrite(count: Int, writeByte: (Byte) -> Unit, action: (index: Int) -> Unit) {
+    writeInt(count, writeByte)
+    repeat(count) { action(it) }
+}
+
+public inline fun <T> readValues(readByte: () -> Byte, readValue: () -> T, action: (value: T) -> Unit) {
+    repeatRead(readByte) { action(readValue()) }
+}
+
+public inline fun <T, C : MutableCollection<T>> readValuesTo(values: C, readByte: () -> Byte, readValue: () -> T): C {
+    readValues(readByte, readValue) { values += it }
+    return values
+}
+
+public inline fun <T> readValues(readByte: () -> Byte, readValue: () -> T): List<T> =
+    List(readInt(readByte)) { readValue() }
+public inline fun <T> writeValues(list: Collection<T>, writeByte: (Byte) -> Unit, writeValue: (T) -> Unit) {
+    writeInt(list.size, writeByte)
+    for (value in list) writeValue(value)
+}
+
+public inline fun <K, V> readMap(
+    readByte: () -> Byte,
+    readKey: () -> K,
+    readValue: (K) -> V,
+    action: (key: K, value: V) -> Unit,
+): Unit = repeatRead(readByte) {
+    val key = readKey()
+    val value = readValue(key)
+    action(key, value)
+}
+
+public inline fun <K, V> readMap(
+    readByte: () -> Byte,
+    readKey: () -> K,
+    readValue: (K) -> V,
+    into: MutableMap<K, V> = mutableMapOf(),
+): Map<K, V> {
+    readMap(readByte, readKey, readValue) { key, value -> into[key] = value }
+    return into
+}
+
+public inline fun <K, V> writeMap(
+    map: Map<K, V>,
+    writeByte: (Byte) -> Unit,
+    writeEntry: (key: K, value: V) -> Unit,
+) {
+    writeInt(map.size, writeByte)
+    for ((key, value) in map) writeEntry(key, value)
+}
+
+public inline fun <K, V> writeMap(
+    map: Map<K, V>,
+    writeByte: (Byte) -> Unit,
+    writeKey: (key: K) -> Unit,
+    writeValue: (value: V) -> Unit,
+): Unit = writeMap(map, writeByte) { key, value ->
+    writeKey(key)
+    writeValue(value)
+}

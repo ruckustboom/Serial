@@ -7,7 +7,7 @@ public annotation class CursorDSL
 
 @CursorDSL
 public interface DataCursor {
-    public val offset: Int
+    public val offset: Long
     public val isEndOfInput: Boolean
     public fun advance()
 }
@@ -19,7 +19,7 @@ public interface ObjectCursor<T> : DataCursor {
 // Exceptions
 
 public class ObjectCursorException(
-    public val offset: Int,
+    public val offset: Long,
     public val value: Any?,
     public val description: String,
     cause: Throwable? = null,
@@ -123,7 +123,7 @@ public fun <T> ObjectCursor<T>.captureCount(count: Int): List<T> = capturing { r
 // Implementation
 
 private abstract class ObjectCursorBase<T> : ObjectCursor<T> {
-    final override var offset = -1
+    final override var offset = -1L
         private set
 
     override fun advance() {

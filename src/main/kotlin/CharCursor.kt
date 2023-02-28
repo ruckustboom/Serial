@@ -3,17 +3,17 @@ package serial
 import java.io.Reader
 
 public interface CharCursor : DataCursor {
-    public val line: Int
-    public val lineStart: Int
+    public val line: Long
+    public val lineStart: Long
     public val current: Char
 }
 
 // Exceptions
 
 public class CharCursorException(
-    public val offset: Int,
-    public val line: Int,
-    public val column: Int,
+    public val offset: Long,
+    public val line: Long,
+    public val column: Long,
     public val character: Char,
     public val description: String,
     cause: Throwable? = null,
@@ -113,11 +113,11 @@ public fun CharCursor.captureCount(count: Int): String = capturing { repeat(coun
 // Implementation
 
 private abstract class CharCursorBase : CharCursor {
-    final override var offset = -1
+    final override var offset = -1L
         private set
-    final override var line = 1
+    final override var line = 1L
         private set
-    final override var lineStart = 0
+    final override var lineStart = 0L
         private set
 
     override fun advance() {
@@ -132,7 +132,7 @@ private abstract class CharCursorBase : CharCursor {
 }
 
 private class StringCursor(private val string: String) : CharCursorBase() {
-    override val current get() = if (offset in string.indices) string[offset] else '\u0000'
+    override val current get() = if (offset in string.indices) string[offset.toInt()] else '\u0000'
     override val isEndOfInput get() = offset >= string.length
 }
 
