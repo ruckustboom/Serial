@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.8.0"
+    kotlin("jvm") version "1.9.0"
     id("maven-publish")
 }
 
@@ -24,8 +24,8 @@ tasks.test {
     useJUnitPlatform()
 }
 
-tasks.withType<KotlinCompile>() {
-    kotlinOptions.jvmTarget = "19"
+tasks.withType<KotlinCompile> {
+    kotlinOptions.jvmTarget = "20"
     kotlinOptions.freeCompilerArgs += "-Xjvm-default=all"
 }
 
