@@ -147,3 +147,31 @@ public inline fun makeInputStream(action: OutputStream.() -> Unit): InputStream 
 
 public inline fun <T> fullWriteAndRead(write: OutputStream.() -> Unit, read: InputStream.() -> T): T =
     makeByteArray(write).asInputStream(read)
+
+public fun ByteArray.asOutputStream(): FixedSizeOutputStream = FixedSizeOutputStream(this)
+
+public class FixedSizeOutputStream(public val array: ByteArray) : OutputStream() {
+    public constructor(size: Int) : this(ByteArray(size))
+
+    private var index = 0
+
+    public fun seek(index: Int) {
+        checkIndex(index)
+        this.index = index
+    }
+
+    public fun seekBy(delta: Int) {
+        val target = index + delta
+        checkIndex(target)
+        this.index = target
+    }
+
+    override fun write(byte: Int) {
+        checkIndex(index)
+        array[index++] = byte.toByte()
+    }
+
+    private fun checkIndex(index: Int) {
+        if (index !in array.indices) throw IndexOutOfBoundsException(index)
+    }
+}

@@ -29,7 +29,6 @@ tasks.withType<KotlinCompile> {
     kotlinOptions.freeCompilerArgs += "-Xjvm-default=all"
 }
 
-
 publishing {
     publications {
         create<MavenPublication>("maven") {
