@@ -8,6 +8,7 @@ import kotlin.random.nextULong
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.fail
 
 class TestStreams {
     // Primitives
@@ -211,5 +212,51 @@ class TestStreams {
         assertEquals(map, serialized.asInputStream {
             readMap({ readString() }, { readInt() })
         })
+    }
+
+    @Test
+    fun testFixedSizeOutputStream() {
+        val array = ByteArray(16)
+        array.asOutputStream {
+            writeInt(6)
+            writeInt(7)
+            writeULong(ULong.MAX_VALUE)
+        }
+        array.asInputStream {
+            assertEquals(6, readInt())
+            assertEquals(7, readInt())
+            assertEquals(ULong.MAX_VALUE, readULong())
+        }
+        array.asOutputStream {
+            seek(2)
+            writeInt(-1)
+            seekBy(-1)
+            writeByte(0)
+            seekBy(3)
+            writeByte(9)
+        }
+        array.asInputStream {
+            assertEquals(0x0000FFFF, readInt())
+            assertEquals(0xFF000007.toInt(), readInt())
+            assertEquals(0xFF09FFFF.toInt(), readInt())
+            assertEquals(0xFFFFFFFF.toInt(), readInt())
+        }
+        array.asOutputStream {
+            writeLong(-1)
+            writeLong(-1)
+            try {
+                writeByte(12)
+                fail("Should not write past end of array")
+            } catch (e: IndexOutOfBoundsException) {
+                assertEquals("Index out of range: 16", e.message)
+            }
+            // Ensure index does not change on failure
+            try {
+                writeByte(12)
+                fail("Should not write past end of array")
+            } catch (e: IndexOutOfBoundsException) {
+                assertEquals("Index out of range: 16", e.message)
+            }
+        }
     }
 }

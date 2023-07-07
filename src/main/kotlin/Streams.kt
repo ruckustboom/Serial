@@ -148,7 +148,10 @@ public inline fun makeInputStream(action: OutputStream.() -> Unit): InputStream 
 public inline fun <T> fullWriteAndRead(write: OutputStream.() -> Unit, read: InputStream.() -> T): T =
     makeByteArray(write).asInputStream(read)
 
-public fun ByteArray.asOutputStream(): FixedSizeOutputStream = FixedSizeOutputStream(this)
+public fun ByteArray.toOutputStream(): FixedSizeOutputStream = FixedSizeOutputStream(this)
+
+public fun ByteArray.asOutputStream(action: FixedSizeOutputStream.() -> Unit): Unit =
+    toOutputStream().use(action)
 
 public class FixedSizeOutputStream(public val array: ByteArray) : OutputStream() {
     public constructor(size: Int) : this(ByteArray(size))
