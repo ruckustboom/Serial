@@ -156,25 +156,26 @@ public fun ByteArray.asOutputStream(action: FixedSizeOutputStream.() -> Unit): U
 public class FixedSizeOutputStream(public val array: ByteArray) : OutputStream() {
     public constructor(size: Int) : this(ByteArray(size))
 
-    private var index = 0
+    public var offset: Int = 0
+        private set
 
-    public fun seek(index: Int) {
-        checkIndex(index)
-        this.index = index
+    public fun seek(offset: Int) {
+        check(offset)
+        this.offset = offset
     }
 
     public fun seekBy(delta: Int) {
-        val target = index + delta
-        checkIndex(target)
-        this.index = target
+        val target = offset + delta
+        check(target)
+        this.offset = target
     }
 
     override fun write(byte: Int) {
-        checkIndex(index)
-        array[index++] = byte.toByte()
+        check(offset)
+        array[offset++] = byte.toByte()
     }
 
-    private fun checkIndex(index: Int) {
-        if (index !in array.indices) throw IndexOutOfBoundsException(index)
+    private fun check(offset: Int) {
+        if (offset !in array.indices) throw IndexOutOfBoundsException(offset)
     }
 }
