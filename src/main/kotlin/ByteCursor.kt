@@ -54,6 +54,8 @@ public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCurs
 
 public fun ByteCursor.read(): Byte = current.also { advance() }
 
+public fun ByteCursor.readCount(count: Int): Unit = repeat(count) { read() }
+
 public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     advance()
     true
@@ -100,12 +102,14 @@ public inline fun <S : ByteCursor> CapturingByteCursor<S>.notCapturing(action: S
 
 public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray = capturing { readWhile(predicate) }
 
-public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { repeat(count) { advance() } }
+public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { readCount(count) }
 
-// Primitives
+// Conversion
 
 public fun ByteCursor.toInputStream(): InputStream = ByteCursorInputStream(this)
 public inline fun <R> ByteCursor.asInputStream(action: InputStream.() -> R): R = toInputStream().use(action)
+
+// Primitives
 
 public fun ByteCursor.readBoolean(): Boolean = readBoolean(::read)
 public fun ByteCursor.readUByte(): UByte = readUByte(::read)

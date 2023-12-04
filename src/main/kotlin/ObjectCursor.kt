@@ -67,6 +67,8 @@ public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T
 
 public fun <T> ObjectCursor<T>.read(): T = current.also { advance() }
 
+public fun <T> ObjectCursor<T>.readCount(count: Int): Unit = repeat(count) { read() }
+
 public inline fun <T> ObjectCursor<T>.readIf(predicate: (T) -> Boolean): Boolean =
     if (!isEndOfInput && predicate(current)) {
         advance()
@@ -118,7 +120,12 @@ public inline fun <T, S : ObjectCursor<T>> CapturingObjectCursor<T, S>.notCaptur
 public inline fun <T> ObjectCursor<T>.captureWhile(predicate: (T) -> Boolean): List<T> =
     capturing { readWhile(predicate) }
 
-public fun <T> ObjectCursor<T>.captureCount(count: Int): List<T> = capturing { repeat(count) { advance() } }
+public fun <T> ObjectCursor<T>.captureCount(count: Int): List<T> = capturing { readCount(count) }
+
+// Conversion
+
+public fun <T> ObjectCursor<T>.toIterator(): Iterator<T> = ObjectCursorIterator(this)
+public inline fun <T, R> ObjectCursor<T>.asIterator(action: Iterator<T>.() -> R): R = toIterator().action()
 
 // Implementation
 
@@ -166,4 +173,9 @@ private class ObjectTokenizer<S : DataCursor, T>(
             current = base.parse()
         }
     }
+}
+
+private class ObjectCursorIterator<T>(private val cursor : ObjectCursor<T>) : Iterator<T> {
+    override fun hasNext() = !cursor.isEndOfInput
+    override fun next() = cursor.read()
 }

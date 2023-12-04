@@ -57,6 +57,8 @@ public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCurs
 
 public fun CharCursor.read(): Char = current.also { advance() }
 
+public fun CharCursor.readCount(count: Int): Unit = repeat(count) { read() }
+
 public inline fun CharCursor.readIf(predicate: (Char) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     advance()
     true
@@ -80,7 +82,9 @@ public fun CharCursor.readRequiredChar(char: Char, ignoreCase: Boolean = false):
 public fun CharCursor.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
     literal.forEach { readRequiredChar(it, ignoreCase) }
 
-public fun CharCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
+@Deprecated("Bad naming", ReplaceWith("consumeWhitespace()"))
+public fun CharCursor.skipWhitespace(): Int = consumeWhitespace()
+public fun CharCursor.consumeWhitespace(): Int = readWhile(Char::isWhitespace)
 
 public val CharCursor.lineOffset: Long get() = offset - lineStart
 
@@ -110,7 +114,12 @@ public inline fun <S : CharCursor> CapturingCharCursor<S>.notCapturing(action: S
 
 public inline fun CharCursor.captureWhile(predicate: (Char) -> Boolean): String = capturing { readWhile(predicate) }
 
-public fun CharCursor.captureCount(count: Int): String = capturing { repeat(count) { advance() } }
+public fun CharCursor.captureCount(count: Int): String = capturing { readCount(count) }
+
+// Conversion
+
+public fun CharCursor.toReader(): Reader = CharCursorReader(this)
+public inline fun <R> CharCursor.asReader(action: Reader.() -> R): R = toReader().use(action)
 
 // Implementation
 
@@ -164,4 +173,18 @@ private class CharTokenizer<S : DataCursor>(private val base: S, private val par
             current = base.parse()
         }
     }
+}
+
+private class CharCursorReader(private val cursor: CharCursor) : Reader() {
+    override fun read(cbuf: CharArray, off: Int, len: Int): Int {
+        if (cursor.isEndOfInput) return -1
+        val start = cursor.offset.toInt()
+        for (i in 0..<len) {
+            cbuf[off + len] = cursor.read()
+            if (cursor.isEndOfInput) break
+        }
+        return cursor.offset.toInt() - start
+    }
+
+    override fun close() = Unit
 }
