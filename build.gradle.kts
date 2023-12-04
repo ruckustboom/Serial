@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.9.10"
+    kotlin("jvm") version "1.9.21"
     id("maven-publish")
 }
 
@@ -25,7 +25,7 @@ tasks.test {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "20"
+    kotlinOptions.jvmTarget = "21"
     kotlinOptions.freeCompilerArgs += "-Xjvm-default=all"
 }
 

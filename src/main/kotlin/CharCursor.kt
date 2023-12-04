@@ -115,7 +115,7 @@ public fun CharCursor.captureCount(count: Int): String = capturing { repeat(coun
 private abstract class CharCursorBase : CharCursor {
     final override var offset = -1L
         private set
-    final override var line = 1L
+    final override var line = 0L
         private set
     final override var lineStart = 0L
         private set
@@ -125,7 +125,7 @@ private abstract class CharCursorBase : CharCursor {
         // Check for newline
         if (current == '\n') {
             line++
-            lineStart = offset
+            lineStart = offset + 1
         }
         offset++
     }
