@@ -20,7 +20,7 @@ public class CharCursorException(
 ) : Exception("$description (found <$character>/${character.code} at $offset ($line:$column))", cause)
 
 public fun CharCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw CharCursorException(offset, line, offset - lineStart + 1, current, message, cause)
+    throw CharCursorException(offset, line, lineOffset, current, message, cause)
 
 public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
     if (!condition) crash(message())
@@ -81,6 +81,8 @@ public fun CharCursor.readLiteral(literal: String, ignoreCase: Boolean = false):
     literal.forEach { readRequiredChar(it, ignoreCase) }
 
 public fun CharCursor.skipWhitespace(): Int = readWhile(Char::isWhitespace)
+
+public val CharCursor.lineOffset: Long get() = offset - lineStart
 
 // Capturing
 

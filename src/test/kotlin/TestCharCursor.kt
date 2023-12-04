@@ -24,10 +24,10 @@ class TestCharCursor {
         } catch (e: CharCursorException) {
             assertEquals(21, e.offset)
             assertEquals(1, e.line)
-            assertEquals(6, e.column)
+            assertEquals(5, e.column)
             assertEquals('o', e.character)
             assertEquals("Expected: m", e.description)
-            assertEquals("Expected: m (found <o>/111 at 21 (1:6))", e.message)
+            assertEquals("Expected: m (found <o>/111 at 21 (1:5))", e.message)
         }
     }
 
