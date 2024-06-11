@@ -2,18 +2,12 @@ package serial
 
 import java.util.stream.Stream
 
-@DslMarker
-public annotation class CursorDSL
-
-@CursorDSL
-public interface DataCursor {
-    public val offset: Long
-    public val isEndOfInput: Boolean
-    public fun advance()
-}
-
 public interface ObjectCursor<T> : DataCursor {
     public val current: T
+
+    public interface Handler<T> : DataCursor.Handler {
+        public fun update(value: T)
+    }
 }
 
 // Exceptions
@@ -34,9 +28,11 @@ public inline fun <T> ObjectCursor<T>.ensure(condition: Boolean, message: () -> 
 
 // Initialize
 
+public fun <T> Array<T>.toCursor(): ObjectCursor<T> = ObjectArrayCursor(this)
 public fun <T> Iterable<T>.toCursor(): ObjectCursor<T> = iterator().toCursor()
-
-public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorCursor(this).apply { advance() }
+public fun <T> Iterator<T>.toCursor(): ObjectCursor<T> = IteratorSource(this).toCursor()
+public fun <T> DataCursor.Source<ObjectCursor.Handler<T>>.toCursor(): ObjectCursor<T> =
+    StatefulObjectCursor(this)
 
 public inline fun <T, R> ObjectCursor<T>.parse(consumeAll: Boolean = true, parse: ObjectCursor<T>.() -> R): R {
     val result = parse()
@@ -61,7 +57,7 @@ public inline fun <T, R> Stream<T>.parse(
 }
 
 public fun <S : DataCursor, T> S.tokenize(parseToken: S.() -> T): ObjectCursor<T> =
-    ObjectTokenizer(this, parseToken).apply { advance() }
+    StatefulObjectCursor(ObjectTokenizer(this, parseToken))
 
 // Some common helpers
 
@@ -130,7 +126,7 @@ public inline fun <T, R> ObjectCursor<T>.asIterator(action: Iterator<T>.() -> R)
 // Implementation
 
 private abstract class ObjectCursorBase<T> : ObjectCursor<T> {
-    final override var offset = -1L
+    final override var offset = 0L
         private set
 
     override fun advance() {
@@ -139,43 +135,63 @@ private abstract class ObjectCursorBase<T> : ObjectCursor<T> {
     }
 }
 
-private class IteratorCursor<T>(private val iter: Iterator<T>) : ObjectCursorBase<T>() {
-    override var isEndOfInput = false
+private class ObjectArrayCursor<T>(private val array: Array<T>) : ObjectCursorBase<T>() {
+    @Suppress("UNCHECKED_CAST")
+    override val current get() = if (offset in array.indices) array[offset.toInt()] else null as T
+    override val isEndOfInput get() = offset >= array.size
+}
 
+private class StatefulObjectCursor<T>(
+    private val source: DataCursor.Source<ObjectCursor.Handler<T>>,
+) : ObjectCursorBase<T>() {
     @Suppress("UNCHECKED_CAST")
     override var current: T = null as T
+        private set
+    override var isEndOfInput = false
+        private set
 
-    // Read
+    private val handler = object : ObjectCursor.Handler<T> {
+        override fun update(value: T) {
+            current = value
+        }
+
+        override fun eoi() {
+            isEndOfInput = true
+            @Suppress("UNCHECKED_CAST")
+            current = null as T
+        }
+    }
+
+    init {
+        source.fetch(handler)
+    }
 
     override fun advance() {
         super.advance()
-        if (iter.hasNext()) {
-            current = iter.next()
-        } else {
-            @Suppress("UNCHECKED_CAST")
-            current = null as T
-            isEndOfInput = true
-        }
+        source.fetch(handler)
+    }
+}
+
+private class IteratorSource<T>(
+    private val iter: Iterator<T>,
+) : DataCursor.Source<ObjectCursor.Handler<T>> {
+    override fun fetch(handler: ObjectCursor.Handler<T>) {
+        if (iter.hasNext()) handler.update(iter.next())
+        else handler.eoi()
     }
 }
 
 private class ObjectTokenizer<S : DataCursor, T>(
     private val base: S,
     private val parse: S.() -> T,
-) : ObjectCursorBase<T>() {
-    @Suppress("UNCHECKED_CAST")
-    override var current: T = null as T
-    override var isEndOfInput = false
-
-    override fun advance() {
-        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            super.advance()
-            current = base.parse()
-        }
+) : DataCursor.Source<ObjectCursor.Handler<T>> {
+    override fun fetch(handler: ObjectCursor.Handler<T>) {
+        if (base.isEndOfInput) handler.eoi()
+        else handler.update(base.parse())
     }
 }
 
-private class ObjectCursorIterator<T>(private val cursor : ObjectCursor<T>) : Iterator<T> {
+private class ObjectCursorIterator<T>(private val cursor: ObjectCursor<T>) : Iterator<T> {
     override fun hasNext() = !cursor.isEndOfInput
     override fun next() = cursor.read()
 }

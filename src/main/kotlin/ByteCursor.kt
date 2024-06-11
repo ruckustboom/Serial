@@ -5,6 +5,10 @@ import java.io.InputStream
 
 public interface ByteCursor : DataCursor {
     public val current: Byte
+
+    public interface Handler : DataCursor.Handler {
+        public fun update(value: Byte)
+    }
 }
 
 // Exceptions
@@ -25,8 +29,11 @@ public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
 
 // Initialize
 
-public fun InputStream.toCursor(): ByteCursor = InputStreamCursor(this).apply { advance() }
-public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this).apply { advance() }
+public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this)
+public fun ByteIterator.toCursor(): ByteCursor = ByteIteratorSource(this).toCursor()
+public fun InputStream.toCursor(): ByteCursor = InputStreamSource(this).toCursor()
+public fun DataCursor.Source<ByteCursor.Handler>.toCursor(): ByteCursor =
+    StatefulByteCursor(this)
 
 public inline fun <T> ByteCursor.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T {
     val result = parse()
@@ -48,7 +55,7 @@ public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCur
     toCursor().parse(consumeAll, parse)
 
 public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor =
-    ByteTokenizer(this, parseToken).apply { advance() }
+    StatefulByteCursor(ByteTokenizer(this, parseToken))
 
 // Some common helpers
 
@@ -170,7 +177,7 @@ public inline fun <K, V> ByteCursor.readMap(
 // Implementation
 
 private abstract class ByteCursorBase : ByteCursor {
-    final override var offset = -1L
+    final override var offset = 0L
         private set
 
     override fun advance() {
@@ -179,36 +186,66 @@ private abstract class ByteCursorBase : ByteCursor {
     }
 }
 
-private class InputStreamCursor(private val stream: InputStream) : ByteCursorBase() {
-    override var current: Byte = 0
+private class ByteArrayCursor(private val array: ByteArray) : ByteCursorBase() {
+    override val current get() = if (offset in array.indices) array[offset.toInt()] else 0
+    override val isEndOfInput get() = offset >= array.size
+}
+
+private class StatefulByteCursor(
+    val source: DataCursor.Source<ByteCursor.Handler>,
+) : ByteCursorBase() {
+    override var current: Byte = -1
+        private set
     override var isEndOfInput = false
+        private set
+
+    private val handler = object : ByteCursor.Handler {
+        override fun update(value: Byte) {
+            current = value
+        }
+
+        override fun eoi() {
+            isEndOfInput = true
+            current = -1
+        }
+    }
+
+    init {
+        source.fetch(handler)
+    }
 
     override fun advance() {
         super.advance()
-        val next = stream.read()
-        if (next >= 0) {
-            current = next.toByte()
-        } else {
-            current = 0
-            isEndOfInput = true
-        }
+        source.fetch(handler)
     }
 }
 
-private class ByteArrayCursor(private val bytes: ByteArray) : ByteCursorBase() {
-    override val current get() = if (offset in bytes.indices) bytes[offset.toInt()] else 0
-    override val isEndOfInput get() = offset >= bytes.size
+private class InputStreamSource(
+    private val stream: InputStream,
+) : DataCursor.Source<ByteCursor.Handler> {
+    override fun fetch(handler: ByteCursor.Handler) {
+        val next = stream.read()
+        if (next < 0) handler.eoi()
+        else handler.update(next.toByte())
+    }
 }
 
-private class ByteTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Byte) : ByteCursorBase() {
-    override var current: Byte = 0
-    override var isEndOfInput = false
+private class ByteIteratorSource(
+    private val iter: ByteIterator,
+) : DataCursor.Source<ByteCursor.Handler> {
+    override fun fetch(handler: ByteCursor.Handler) {
+        if (iter.hasNext()) handler.update(iter.nextByte())
+        else handler.eoi()
+    }
+}
 
-    override fun advance() {
-        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            super.advance()
-            current = base.parse()
-        }
+private class ByteTokenizer<S : DataCursor>(
+    private val base: S,
+    private val parse: S.() -> Byte,
+) : DataCursor.Source<ByteCursor.Handler> {
+    override fun fetch(handler: ByteCursor.Handler) {
+        if (base.isEndOfInput) handler.eoi()
+        else handler.update(base.parse())
     }
 }
 

@@ -17,7 +17,7 @@ class TestCharCursor {
                 assertEquals(3, readWhile { it == '.' })
                 readRequiredChar(':')
                 readLiteral("VROOM", true)
-                skipWhitespace()
+                consumeWhitespace()
                 readLiteral("Vroom!", true)
             }
             fail("Should have crashed")
@@ -36,7 +36,7 @@ class TestCharCursor {
         "123456?#$&! 123---789".parse {
             assertEquals("123456", captureWhile { it.isDigit() })
             assertEquals("?#$&!", captureCount(5))
-            skipWhitespace()
+            consumeWhitespace()
             assertEquals(
                 "123456789",
                 capturing {

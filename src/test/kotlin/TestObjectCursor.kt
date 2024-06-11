@@ -50,7 +50,7 @@ class TestObjectCursor {
     @Test
     fun testTokenize() {
         "this is a test".toCursor()
-            .tokenize { captureWhile { it.isLetterOrDigit() }.also { skipWhitespace() } }
+            .tokenize { captureWhile { it.isLetterOrDigit() }.also { consumeWhitespace() } }
             .parse {
                 assertEquals("this", read())
                 assertEquals("is", read())

@@ -6,6 +6,10 @@ public interface CharCursor : DataCursor {
     public val line: Long
     public val lineStart: Long
     public val current: Char
+
+    public interface Handler : DataCursor.Handler {
+        public fun update(value: Char)
+    }
 }
 
 // Exceptions
@@ -28,8 +32,12 @@ public inline fun CharCursor.ensure(condition: Boolean, message: () -> String) {
 
 // Initialize
 
-public fun Reader.toCursor(): CharCursor = ReaderCursor(this).apply { advance() }
-public fun String.toCursor(): CharCursor = StringCursor(this).apply { advance() }
+public fun String.toCursor(): CharCursor = StringCursor(this)
+public fun CharArray.toCursor(): CharCursor = CharArrayCursor(this)
+public fun CharIterator.toCursor(): CharCursor = CharIteratorSource(this).toCursor()
+public fun Reader.toCursor(): CharCursor = ReaderSource(this).toCursor()
+public fun DataCursor.Source<CharCursor.Handler>.toCursor(): CharCursor =
+    StatefulCharCursor(this)
 
 public inline fun <T> CharCursor.parse(consumeAll: Boolean = true, parse: CharCursor.() -> T): T {
     val result = parse()
@@ -51,7 +59,7 @@ public inline fun <T> String.parse(consumeAll: Boolean = true, parse: CharCursor
     toCursor().parse(consumeAll, parse)
 
 public fun <S : DataCursor> S.tokenizeToChar(parseToken: S.() -> Char): CharCursor =
-    CharTokenizer(this, parseToken).apply { advance() }
+    StatefulCharCursor(CharTokenizer(this, parseToken))
 
 // Some common helpers
 
@@ -124,7 +132,7 @@ public inline fun <R> CharCursor.asReader(action: Reader.() -> R): R = toReader(
 // Implementation
 
 private abstract class CharCursorBase : CharCursor {
-    final override var offset = -1L
+    final override var offset = 0L
         private set
     final override var line = 0L
         private set
@@ -147,31 +155,66 @@ private class StringCursor(private val string: String) : CharCursorBase() {
     override val isEndOfInput get() = offset >= string.length
 }
 
-private class ReaderCursor(private val reader: Reader) : CharCursorBase() {
-    override var current = '\u0000'
+private class CharArrayCursor(private val array: CharArray) : CharCursorBase() {
+    override val current get() = if (offset in array.indices) array[offset.toInt()] else '\u0000'
+    override val isEndOfInput get() = offset >= array.size
+}
+
+private class StatefulCharCursor(
+    private val source: DataCursor.Source<CharCursor.Handler>,
+) : CharCursorBase() {
+    override var current: Char = '\u0000'
+        private set
     override var isEndOfInput = false
+        private set
+
+    private val handler = object : CharCursor.Handler {
+        override fun update(value: Char) {
+            current = value
+        }
+
+        override fun eoi() {
+            isEndOfInput = true
+            current = '\u0000'
+        }
+    }
+
+    init {
+        source.fetch(handler)
+    }
 
     override fun advance() {
         super.advance()
-        val next = reader.read()
-        if (next >= 0) {
-            current = next.toChar()
-        } else {
-            current = '\u0000'
-            isEndOfInput = true
-        }
+        source.fetch(handler)
     }
 }
 
-private class CharTokenizer<S : DataCursor>(private val base: S, private val parse: S.() -> Char) : CharCursorBase() {
-    override var current = '\u0000'
-    override var isEndOfInput = false
+private class ReaderSource(
+    private val reader: Reader,
+) : DataCursor.Source<CharCursor.Handler> {
+    override fun fetch(handler: CharCursor.Handler) {
+        val next = reader.read()
+        if (next < 0) handler.eoi()
+        else handler.update(next.toChar())
+    }
+}
 
-    override fun advance() {
-        if (!isEndOfInput && base.isEndOfInput) isEndOfInput = true else {
-            super.advance()
-            current = base.parse()
-        }
+private class CharIteratorSource(
+    private val iter: CharIterator
+) : DataCursor.Source<CharCursor.Handler> {
+    override fun fetch(handler: CharCursor.Handler) {
+        if (iter.hasNext()) handler.update(iter.nextChar())
+        else handler.eoi()
+    }
+}
+
+private class CharTokenizer<S : DataCursor>(
+    private val base: S,
+    private val parse: S.() -> Char,
+) : DataCursor.Source<CharCursor.Handler> {
+    override fun fetch(handler: CharCursor.Handler) {
+        if (base.isEndOfInput) handler.eoi()
+        else handler.update(base.parse())
     }
 }
 
