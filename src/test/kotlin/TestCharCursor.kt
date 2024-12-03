@@ -49,6 +49,12 @@ class TestCharCursor {
                 },
             )
         }
+        "'this is a string'".parse {
+            assertEquals("this is a string", captureStringLiteral('\''))
+        }
+        "[this is a#nstring]".parse {
+            assertEquals("[this is a\nstring]", captureStringLiteral('[', ']', true, '#'))
+        }
     }
 
     @Test

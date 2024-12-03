@@ -124,6 +124,50 @@ public inline fun CharCursor.captureWhile(predicate: (Char) -> Boolean): String 
 
 public fun CharCursor.captureCount(count: Int): String = capturing { readCount(count) }
 
+public fun CharCursor.captureStringLiteral(
+    open: Char = '"',
+    close: Char = open,
+    includeDelimiter: Boolean = false,
+    escape: Char = '\\',
+): String {
+    readRequiredChar(open)
+    val string = capturing {
+        if (includeDelimiter) capture(open)
+        while (current != close) {
+            ensure(current >= '\u0020') { "Invalid character" }
+            if (current == escape) {
+                notCapturing {
+                    advance()
+                    this@capturing.capture(
+                        when (current) {
+                            'n' -> '\n'
+                            'r' -> '\r'
+                            't' -> '\t'
+                            'b' -> '\b'
+                            'f' -> '\u000c'
+                            'u' -> String(CharArray(4) {
+                                advance()
+                                ensure(current.isHexDigit()) { "Invalid hex digit" }
+                                current
+                            }).toInt(16).toChar()
+
+                            else -> current
+                        }
+                    )
+                    advance()
+                }
+            } else {
+                advance()
+            }
+        }
+        if (includeDelimiter) capture(close)
+    }
+    readRequiredChar(close)
+    return string
+}
+
+private fun Char.isHexDigit() = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
+
 // Conversion
 
 public fun CharCursor.toReader(): Reader = CharCursorReader(this)
