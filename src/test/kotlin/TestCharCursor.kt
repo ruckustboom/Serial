@@ -69,4 +69,14 @@ class TestCharCursor {
                 assertTrue(isEndOfInput)
             }
     }
+
+    @Test
+    fun testErrors() {
+        assertEquals(
+            "Ambiguous termination vs escape (found <f>/102 at 0 (0:0))",
+            assertFailsWith<CharCursorException> {
+                "fred".parse { captureStringLiteral(open = '?', escape = '?') }
+            }.message
+        )
+    }
 }

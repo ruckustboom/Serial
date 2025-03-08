@@ -130,6 +130,7 @@ public fun CharCursor.captureStringLiteral(
     includeDelimiter: Boolean = false,
     escape: Char = '\\',
 ): String {
+    ensure(close != escape) { "Ambiguous termination vs escape" }
     readRequiredChar(open)
     val string = capturing {
         if (includeDelimiter) capture(open)
