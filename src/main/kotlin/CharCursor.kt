@@ -90,9 +90,8 @@ public fun CharCursor.readRequiredChar(char: Char, ignoreCase: Boolean = false):
 public fun CharCursor.readLiteral(literal: String, ignoreCase: Boolean = false): Unit =
     literal.forEach { readRequiredChar(it, ignoreCase) }
 
-@Deprecated("Bad naming", ReplaceWith("consumeWhitespace()"))
-public fun CharCursor.skipWhitespace(): Int = consumeWhitespace()
-public fun CharCursor.consumeWhitespace(): Int = readWhile(Char::isWhitespace)
+public fun CharCursor.readWhileWhitespace(includeLineBreaks: Boolean = true): Int =
+    readWhile { it.isWhitespace() && (includeLineBreaks || it != '\n') }
 
 public val CharCursor.lineOffset: Long get() = offset - lineStart
 
