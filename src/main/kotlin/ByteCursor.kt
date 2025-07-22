@@ -6,7 +6,7 @@ import java.io.InputStream
 public interface ByteCursor : DataCursor {
     public val current: Byte
 
-    public interface Handler : DataCursor.Handler {
+    public interface Sink : DataCursor.Sink {
         public fun update(value: Byte)
     }
 }
@@ -16,52 +16,26 @@ public interface ByteCursor : DataCursor {
 public class ByteCursorException(
     public val offset: Long,
     public val byte: Byte,
-    public val description: String,
+    message: String,
     cause: Throwable? = null,
-) : Exception("$description (found $byte at $offset)", cause)
-
-public fun ByteCursor.crash(message: String, cause: Throwable? = null): Nothing =
-    throw ByteCursorException(offset, current, message, cause)
-
-public inline fun ByteCursor.ensure(condition: Boolean, message: () -> String) {
-    if (!condition) crash(message())
-}
+) : Exception(message, cause)
 
 // Initialize
 
 public fun ByteArray.toCursor(): ByteCursor = ByteArrayCursor(this)
 public fun ByteIterator.toCursor(): ByteCursor = ByteIteratorSource(this).toCursor()
 public fun InputStream.toCursor(): ByteCursor = InputStreamSource(this).toCursor()
-public fun DataCursor.Source<ByteCursor.Handler>.toCursor(): ByteCursor =
-    StatefulByteCursor(this)
+public fun DataCursor.Source<ByteCursor.Sink>.toCursor(): ByteCursor = SourceByteCursor(this)
 
-public inline fun <T> ByteCursor.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T {
-    val result = parse()
-    if (consumeAll && !isEndOfInput) crash("Expected EOI @ $offset, found $current")
-    return result
-}
-
-public inline fun <T> InputStream.parse(
-    consumeAll: Boolean = true,
-    closeWhenDone: Boolean = true,
-    parse: ByteCursor.() -> T,
-): T = try {
-    toCursor().parse(consumeAll, parse)
-} finally {
-    if (closeWhenDone) close()
-}
-
-public inline fun <T> ByteArray.parse(consumeAll: Boolean = true, parse: ByteCursor.() -> T): T =
-    toCursor().parse(consumeAll, parse)
-
+public inline fun <T> ByteCursor.parse(parse: ByteCursor.() -> T): T = parse()
+public inline fun <T> InputStream.parse(parse: ByteCursor.() -> T): T = toCursor().parse(parse)
+public inline fun <T> ByteArray.parse(parse: ByteCursor.() -> T): T = toCursor().parse(parse)
 public fun <S : DataCursor> S.tokenizeToByte(parseToken: S.() -> Byte): ByteCursor =
-    StatefulByteCursor(ByteTokenizer(this, parseToken))
+    SourceByteCursor(ByteTokenizer(this, parseToken))
 
 // Some common helpers
 
 public fun ByteCursor.read(): Byte = current.also { advance() }
-
-public fun ByteCursor.readCount(count: Int): Unit = repeat(count) { read() }
 
 public inline fun ByteCursor.readIf(predicate: (Byte) -> Boolean): Boolean = if (!isEndOfInput && predicate(current)) {
     advance()
@@ -89,8 +63,7 @@ public class CapturingByteCursor<out S : ByteCursor>(public val base: S) : ByteC
     private val data = ByteArrayOutputStream()
 
     override fun advance() {
-        capture(current)
-        base.advance()
+        capture(base.read())
     }
 
     public fun capture(byte: Byte) {
@@ -105,11 +78,11 @@ public fun <S : ByteCursor> CapturingByteCursor<S>.capture(literal: ByteArray): 
 public inline fun <S : ByteCursor> S.capturing(action: CapturingByteCursor<S>.() -> Unit): ByteArray =
     CapturingByteCursor(this).apply(action).getCaptured()
 
-public inline fun <S : ByteCursor> CapturingByteCursor<S>.notCapturing(action: S.() -> Unit): Unit = base.action()
+public inline fun <S : ByteCursor, T> CapturingByteCursor<S>.notCapturing(action: S.() -> T): T = base.action()
 
 public inline fun ByteCursor.captureWhile(predicate: (Byte) -> Boolean): ByteArray = capturing { readWhile(predicate) }
 
-public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { readCount(count) }
+public fun ByteCursor.captureCount(count: Int): ByteArray = capturing { advanceBy(count) }
 
 // Conversion
 
@@ -180,8 +153,11 @@ private abstract class ByteCursorBase : ByteCursor {
     final override var offset = 0L
         private set
 
+    override fun crash(message: String, cause: Throwable?): Nothing =
+        throw ByteCursorException(offset, current, message, cause)
+
     override fun advance() {
-        ensure(!isEndOfInput) { "Unexpected EOI" }
+        ensure(!isEndOfInput) { "Unexpected end of input" }
         offset++
     }
 }
@@ -191,15 +167,15 @@ private class ByteArrayCursor(private val array: ByteArray) : ByteCursorBase() {
     override val isEndOfInput get() = offset >= array.size
 }
 
-private class StatefulByteCursor(
-    val source: DataCursor.Source<ByteCursor.Handler>,
+private class SourceByteCursor(
+    val source: DataCursor.Source<ByteCursor.Sink>,
 ) : ByteCursorBase() {
     override var current: Byte = -1
         private set
     override var isEndOfInput = false
         private set
 
-    private val handler = object : ByteCursor.Handler {
+    private val sink = object : ByteCursor.Sink {
         override fun update(value: Byte) {
             current = value
         }
@@ -208,44 +184,59 @@ private class StatefulByteCursor(
             isEndOfInput = true
             current = -1
         }
+
+        override fun crash(message: String, cause: Throwable?) =
+            this@SourceByteCursor.crash(message, cause)
     }
 
     init {
-        source.fetch(handler)
+        source.fetch(sink)
     }
 
     override fun advance() {
         super.advance()
-        source.fetch(handler)
+        source.fetch(sink)
     }
 }
 
 private class InputStreamSource(
-    private val stream: InputStream,
-) : DataCursor.Source<ByteCursor.Handler> {
-    override fun fetch(handler: ByteCursor.Handler) {
-        val next = stream.read()
-        if (next < 0) handler.eoi()
-        else handler.update(next.toByte())
+    stream: InputStream,
+) : DataCursor.Source<ByteCursor.Sink>, AutoCloseable {
+    private var stream: InputStream? = stream
+
+    override fun fetch(into: ByteCursor.Sink) {
+        val stream = stream ?: into.crash("Stream already closed")
+        val next = try {
+            stream.read()
+        } catch (e: Throwable) {
+            into.crash("Failed to read from stream", e)
+        }
+        if (next < 0) into.eoi()
+        else into.update(next.toByte())
+    }
+
+    override fun close() {
+        stream?.close()
+        stream = null
     }
 }
 
 private class ByteIteratorSource(
     private val iter: ByteIterator,
-) : DataCursor.Source<ByteCursor.Handler> {
-    override fun fetch(handler: ByteCursor.Handler) {
-        if (iter.hasNext()) handler.update(iter.nextByte())
-        else handler.eoi()
+) : DataCursor.Source<ByteCursor.Sink> {
+    override fun fetch(into: ByteCursor.Sink) {
+        if (iter.hasNext()) into.update(iter.nextByte())
+        else into.eoi()
     }
 }
 
 private class ByteTokenizer<S : DataCursor>(
     private val base: S,
     private val parse: S.() -> Byte,
-) : DataCursor.Source<ByteCursor.Handler> {
-    override fun fetch(handler: ByteCursor.Handler) {
-        if (base.isEndOfInput) handler.eoi()
-        else handler.update(base.parse())
+) : DataCursor.Source<ByteCursor.Sink> {
+    override fun fetch(into: ByteCursor.Sink) {
+        if (base.isEndOfInput) into.eoi()
+        else into.update(base.parse())
     }
 }
 

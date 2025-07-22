@@ -26,8 +26,7 @@ class TestCharCursor {
             assertEquals(1, e.line)
             assertEquals(5, e.column)
             assertEquals('o', e.character)
-            assertEquals("Expected: m", e.description)
-            assertEquals("Expected: m (found <o>/111 at 21 (1:5))", e.message)
+            assertEquals("Expected: m", e.message)
         }
     }
 
@@ -41,9 +40,7 @@ class TestCharCursor {
                 "123456789",
                 capturing {
                     assertEquals(3, readWhile { it.isDigit() })
-                    notCapturing {
-                        assertEquals(3, readWhile { it == '-' })
-                    }
+                    assertEquals(3, notCapturing { readWhile { it == '-' } })
                     capture("456")
                     assertEquals(3, readWhile { it.isDigit() })
                 },
@@ -73,7 +70,7 @@ class TestCharCursor {
     @Test
     fun testErrors() {
         assertEquals(
-            "Ambiguous termination vs escape (found <f>/102 at 0 (0:0))",
+            "Ambiguous termination vs escape",
             assertFailsWith<CharCursorException> {
                 "fred".parse { captureStringLiteral(open = '?', escape = '?') }
             }.message
@@ -107,6 +104,15 @@ class TestCharCursor {
                     readWhile { it.isLetter() }
                 }
             }
+        )
+    }
+
+    @Test
+    fun testEoi() {
+        "".parse { eoi() }  // Should run without failing
+        assertEquals(
+            "Expected end of input",
+            assertFailsWith<CharCursorException> { "?".parse { eoi() } }.message,
         )
     }
 }

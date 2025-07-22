@@ -25,8 +25,7 @@ class TestByteCursor {
         } catch (e: ByteCursorException) {
             assertEquals(17, e.offset)
             assertEquals(17, e.byte)
-            assertEquals("Expected: 15", e.description)
-            assertEquals("Expected: 15 (found 17 at 17)", e.message)
+            assertEquals("Expected: 15", e.message)
         }
     }
 
@@ -39,9 +38,7 @@ class TestByteCursor {
                 byteArrayOf(15, 16, 17, 18, 19, -1, -2, -3, 30, 31, 32),
                 capturing {
                     assertEquals(5, readWhile { it < 20 })
-                    notCapturing {
-                        assertEquals(10, readWhile { it < 30 })
-                    }
+                    assertEquals(10, notCapturing { readWhile { it < 30 } })
                     capture(byteArrayOf(-1, -2, -3))
                     assertEquals(3, readWhile { it < 33 })
                 },

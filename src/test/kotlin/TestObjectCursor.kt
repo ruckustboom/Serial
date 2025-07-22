@@ -23,8 +23,7 @@ class TestObjectCursor {
         } catch (e: ObjectCursorException) {
             assertEquals(17, e.offset)
             assertEquals(17, e.value)
-            assertEquals("Expected: 15", e.description)
-            assertEquals("Expected: 15 (found <17> at 17)", e.message)
+            assertEquals("Expected: 15", e.message)
         }
     }
 
@@ -37,9 +36,7 @@ class TestObjectCursor {
                 listOf(15, 16, 17, 18, 19, -1, -2, -3, 30, 31, 32),
                 capturing {
                     assertEquals(5, readWhile { it < 20 })
-                    notCapturing {
-                        assertEquals(10, readWhile { it < 30 })
-                    }
+                    assertEquals(10, notCapturing { readWhile { it < 30 } })
                     capture(listOf(-1, -2, -3))
                     assertEquals(3, readWhile { it < 33 })
                 },
