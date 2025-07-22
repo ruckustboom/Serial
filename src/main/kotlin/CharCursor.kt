@@ -253,12 +253,12 @@ private class CharTokenizer<S : DataCursor>(
 private class CharCursorReader(private val cursor: CharCursor) : Reader() {
     override fun read(cbuf: CharArray, off: Int, len: Int): Int {
         if (cursor.isEndOfInput) return -1
-        val start = cursor.offset.toInt()
-        for (i in 0..<len) {
-            cbuf[off + len] = cursor.read()
+        var i = 0
+        while (i < len) {
+            cbuf[off + i++] = cursor.read()
             if (cursor.isEndOfInput) break
         }
-        return cursor.offset.toInt() - start
+        return i
     }
 
     override fun close() = Unit
